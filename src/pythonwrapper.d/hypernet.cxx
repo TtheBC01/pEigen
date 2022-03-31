@@ -1,6 +1,10 @@
-#include <clinpack.d/HyperMatrixDense.hpp>
+/* #include <clinpack.d/HyperMatrixDense.hpp>
 #include <clinpack.d/HyperMatrixSparse.hpp>
-#include <clinpack.d/DenseFactorizationFactory.hpp>
+#include <clinpack.d/DenseFactorizationFactory.hpp> */
+#include <boost/python.hpp>
+
+#include <Eigen/Core>
+#include <Eigen/Dense>
 
 // Converts a C++ vector to a python list
 template <class T>
@@ -29,7 +33,7 @@ BOOST_PYTHON_MODULE(libhypernet)
 {
   using namespace boost::python;
 
-  // this function converts c++ vector to a python list structure
+/*   // this function converts c++ vector to a python list structure
   def("HyperStateDoubleToList", &vectorToPythonList<double>);
 
   // wrapper for vector classes to interface with c++ protocols
@@ -123,5 +127,5 @@ BOOST_PYTHON_MODULE(libhypernet)
     .def("getSingularValues", &HFFactory::getSingularValues)
     .def("getV", &HFFactory::getV)
     .def("getQ", &HFFactory::getQ)
-  ;
+  ; */
 }

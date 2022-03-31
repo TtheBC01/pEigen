@@ -4,10 +4,10 @@ project(PEIGEN)
 
 set(INC_DIR .)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 20)
 
 include_directories("${INC_DIR}")
-include_directories(/pEigen/eigen)
+include_directories(/eigen)
 
 # only use Eigen lib components that are MPL2 licenced
 set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DEIGEN_MPL2_ONLY")
@@ -21,8 +21,8 @@ find_package(PythonLibs 3 REQUIRED)
 include_directories("${PYTHON_INCLUDE_DIRS}")
 
 # main library for python bindings
-add_library(hypernet SHARED pythonwrapper.d/hypernet.cxx)
-set_target_properties(hypernet
+add_library(peigen SHARED pythonwrapper.d/peigen.cxx)
+set_target_properties(peigen
                       PROPERTIES
                       LIBRARY_OUTPUT_DIRECTORY ${LIBDIR})
 
@@ -31,14 +31,12 @@ find_package(Boost 1.74 REQUIRED system python)
 if(Boost_FOUND)
 	MESSAGE(" -- A library with Boost found.")
         include_directories("${Boost_INCLUDE_DIRS}")
-	target_link_libraries(a.out    ${Boost_LIBRARIES} ${PYTHON_LIBRARIES})
-	target_link_libraries(b.out    ${Boost_LIBRARIES} ${PYTHON_LIBRARIES})
-        target_link_libraries(hypernet ${Boost_LIBRARIES} ${PYTHON_LIBRARIES})
+        target_link_libraries(peigen ${Boost_LIBRARIES} ${PYTHON_LIBRARIES})
 elseif(not Boost_FOUND)
 	message(FATAL_ERROR "unable to find correct Boost version.")
 endif(Boost_FOUND)
 
-set(AllTargets hypernet)
+set(AllTargets peigen)
 
 INSTALL(TARGETS ${AllTargets} 
         RUNTIME DESTINATION bin
