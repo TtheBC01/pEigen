@@ -2,7 +2,7 @@
 
 ## Docker Environment
 
-This repo comes with a Docker definition file to construct a ubuntu-based development environment that
+This repo comes with a Docker [definition](/Dockerfile) file to construct a ubuntu-based development environment that
 is guaranteed to compile. You don't need to install dependencies on you local environment, just install the
 [Docker engine](https://www.docker.com/) and build the pEigen environment:
 
