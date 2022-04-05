@@ -1,12 +1,12 @@
 template <class scalar>
-HyperMatrixDense<scalar>::HyperMatrixDense()
+denseMatrix<scalar>::denseMatrix()
 : rows_(0),
   cols_(0),
   transpose_mat(false)
 {}
 
 template <class scalar>
-HyperMatrixDense<scalar>::HyperMatrixDense(int rows, int cols)
+denseMatrix<scalar>::denseMatrix(int rows, int cols)
 : rows_(rows),
   cols_(cols),
   transpose_mat(false)
@@ -15,7 +15,7 @@ HyperMatrixDense<scalar>::HyperMatrixDense(int rows, int cols)
 }
 
 template <class scalar>
-HyperMatrixDense<scalar>::HyperMatrixDense(std::vector<scalar> &data, int rows, int cols)
+denseMatrix<scalar>::denseMatrix(std::vector<scalar> &data, int rows, int cols)
 : data_(data),
   rows_(rows),
   cols_(cols),
@@ -23,7 +23,7 @@ HyperMatrixDense<scalar>::HyperMatrixDense(std::vector<scalar> &data, int rows, 
 {}
 
 template <class scalar>
-void HyperMatrixDense<scalar>::resize(int rows, int cols)
+void denseMatrix<scalar>::resize(int rows, int cols)
 {
   rows_ = rows;
   cols_ = cols;
@@ -31,7 +31,7 @@ void HyperMatrixDense<scalar>::resize(int rows, int cols)
 }
 
 template <class scalar>
-void HyperMatrixDense<scalar>::setRandom(int seed)
+void denseMatrix<scalar>::setRandom(int seed)
 {
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(this->data(),
                                                                         rows_,
@@ -42,7 +42,7 @@ void HyperMatrixDense<scalar>::setRandom(int seed)
 }
 
 template <class scalar>
-void HyperMatrixDense<scalar>::save(std::string fname)
+void denseMatrix<scalar>::save(std::string fname)
 {
   std::ofstream ofs(fname.c_str());
   boost::archive::text_oarchive oa(ofs);
@@ -51,7 +51,7 @@ void HyperMatrixDense<scalar>::save(std::string fname)
 }
 
 template <class scalar>
-void HyperMatrixDense<scalar>::load(std::string fname)
+void denseMatrix<scalar>::load(std::string fname)
 { 
   std::ifstream ifs(fname.c_str());
   boost::archive::text_iarchive ia(ifs);
@@ -60,7 +60,7 @@ void HyperMatrixDense<scalar>::load(std::string fname)
 }
 
 template <class scalar>
-int HyperMatrixDense<scalar>::get_rows()
+int denseMatrix<scalar>::get_rows()
 {
   int tmp = rows_; 
   if(is_transpose())
@@ -70,7 +70,7 @@ int HyperMatrixDense<scalar>::get_rows()
 }
 
 template <class scalar>
-int HyperMatrixDense<scalar>::get_cols()
+int denseMatrix<scalar>::get_cols()
 {
   int tmp = cols_;
   if(is_transpose())
@@ -80,10 +80,10 @@ int HyperMatrixDense<scalar>::get_cols()
 }
 
 template <class scalar>
-HyperMatrixDense<scalar> HyperMatrixDense<scalar>::get_row(int row)
+denseMatrix<scalar> denseMatrix<scalar>::get_row(int row)
 {
 
-  HyperMatrixDense newrow(1,cols_);
+  denseMatrix newrow(1,cols_);
 
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(this->data(),
                                                                         rows_,
@@ -99,10 +99,10 @@ HyperMatrixDense<scalar> HyperMatrixDense<scalar>::get_row(int row)
 }
 
 template <class scalar>
-HyperMatrixDense<scalar> HyperMatrixDense<scalar>::get_col(int col)
+denseMatrix<scalar> denseMatrix<scalar>::get_col(int col)
 {
  
-  HyperMatrixDense column(rows_,1);
+  denseMatrix column(rows_,1);
 
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(this->data(),
                                                                         rows_,
@@ -118,10 +118,10 @@ HyperMatrixDense<scalar> HyperMatrixDense<scalar>::get_col(int col)
 }
 
 template <class scalar>
-HyperMatrixDense<scalar> HyperMatrixDense<scalar>::get_diagonal(int n)
+denseMatrix<scalar> denseMatrix<scalar>::get_diagonal(int n)
 {
 
-  HyperMatrixDense diag(rows_,1);
+  denseMatrix diag(rows_,1);
 
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(this->data(),
                                                                         rows_,
@@ -137,10 +137,10 @@ HyperMatrixDense<scalar> HyperMatrixDense<scalar>::get_diagonal(int n)
 }
 
 template <class scalar>
-HyperMatrixDense<scalar> HyperMatrixDense<scalar>::get_block(int row, int col, int nrows, int ncols)
+denseMatrix<scalar> denseMatrix<scalar>::get_block(int row, int col, int nrows, int ncols)
 {
 
-  HyperMatrixDense block(nrows,ncols);
+  denseMatrix block(nrows,ncols);
 
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(this->data(),
                                                                         rows_,
@@ -156,10 +156,10 @@ HyperMatrixDense<scalar> HyperMatrixDense<scalar>::get_block(int row, int col, i
 }
 
 template <class scalar>
-void HyperMatrixDense<scalar>::set_row(int row, const HyperMatrixDense& rmat)
+void denseMatrix<scalar>::set_row(int row, const denseMatrix& rmat)
 {
 
-  HyperMatrixDense<scalar> buffer = rmat; 
+  denseMatrix<scalar> buffer = rmat; 
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(this->data(),
                                                                         rows_,
                                                                         cols_);
@@ -172,10 +172,10 @@ void HyperMatrixDense<scalar>::set_row(int row, const HyperMatrixDense& rmat)
 }
 
 template <class scalar>
-void HyperMatrixDense<scalar>::set_col(int col, const HyperMatrixDense& cmat)
+void denseMatrix<scalar>::set_col(int col, const denseMatrix& cmat)
 {
 
-  HyperMatrixDense<scalar> buffer = cmat; 
+  denseMatrix<scalar> buffer = cmat; 
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(this->data(),
                                                                         rows_,
                                                                         cols_);
@@ -188,10 +188,10 @@ void HyperMatrixDense<scalar>::set_col(int col, const HyperMatrixDense& cmat)
 }
     
 template <class scalar>
-void HyperMatrixDense<scalar>::set_diagonal(int d, const HyperMatrixDense& dmat)
+void denseMatrix<scalar>::set_diagonal(int d, const denseMatrix& dmat)
 { 
 
-  HyperMatrixDense<scalar> buffer = dmat; 
+  denseMatrix<scalar> buffer = dmat; 
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(this->data(),
                                                                         rows_,
                                                                         cols_);
@@ -204,10 +204,10 @@ void HyperMatrixDense<scalar>::set_diagonal(int d, const HyperMatrixDense& dmat)
 }
 
 template <class scalar>
-void HyperMatrixDense<scalar>::set_block(int i, int j, int k, int l, const HyperMatrixDense& bmat)
+void denseMatrix<scalar>::set_block(int i, int j, int k, int l, const denseMatrix& bmat)
 {
 
-  HyperMatrixDense<scalar> buffer = bmat; 
+  denseMatrix<scalar> buffer = bmat; 
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(this->data(),
                                                                         rows_,
                                                                         cols_);
@@ -221,7 +221,7 @@ void HyperMatrixDense<scalar>::set_block(int i, int j, int k, int l, const Hyper
 
 
 template <class scalar>
-HyperMatrixDense<scalar>& HyperMatrixDense<scalar>::operator=(const HyperMatrixDense& other)
+denseMatrix<scalar>& denseMatrix<scalar>::operator=(const denseMatrix& other)
 {
   rows_ = other.rows();
   cols_ = other.cols();
@@ -230,9 +230,9 @@ HyperMatrixDense<scalar>& HyperMatrixDense<scalar>::operator=(const HyperMatrixD
 }
 
 template <class scalar>
-HyperMatrixDense<scalar>& HyperMatrixDense<scalar>::operator+=(const HyperMatrixDense& other)
+denseMatrix<scalar>& denseMatrix<scalar>::operator+=(const denseMatrix& other)
 {
-  HyperMatrixDense<scalar> buffer = other;
+  denseMatrix<scalar> buffer = other;
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(this->data(),
                                                                         rows_,
                                                                         cols_);
@@ -254,9 +254,9 @@ HyperMatrixDense<scalar>& HyperMatrixDense<scalar>::operator+=(const HyperMatrix
 }
 
 template <class scalar>
-HyperMatrixDense<scalar>& HyperMatrixDense<scalar>::operator-=(const HyperMatrixDense& other)
+denseMatrix<scalar>& denseMatrix<scalar>::operator-=(const denseMatrix& other)
 {
-  HyperMatrixDense<scalar> buffer;
+  denseMatrix<scalar> buffer;
   buffer = other;
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(this->data(),
                                                                         rows_,
@@ -278,7 +278,7 @@ HyperMatrixDense<scalar>& HyperMatrixDense<scalar>::operator-=(const HyperMatrix
 }
 
 template <class scalar>
-HyperMatrixDense<scalar>& HyperMatrixDense<scalar>::operator*=(const double a)
+denseMatrix<scalar>& denseMatrix<scalar>::operator*=(const double a)
 {
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(this->data(),
                                                                         rows_,
@@ -289,29 +289,29 @@ HyperMatrixDense<scalar>& HyperMatrixDense<scalar>::operator*=(const double a)
 }
 
 template <class scalar>
-HyperMatrixDense<scalar> HyperMatrixDense<scalar>::operator+(const HyperMatrixDense& other)
+denseMatrix<scalar> denseMatrix<scalar>::operator+(const denseMatrix& other)
 {
-  HyperMatrixDense<scalar> result = other;
+  denseMatrix<scalar> result = other;
   result += *this;
 
   return result;
 }
 
 template <class scalar>
-HyperMatrixDense<scalar> HyperMatrixDense<scalar>::operator-(const HyperMatrixDense& other)
+denseMatrix<scalar> denseMatrix<scalar>::operator-(const denseMatrix& other)
 {
-  HyperMatrixDense<scalar> result = *this;
+  denseMatrix<scalar> result = *this;
   result -= other;
 
   return result;
 }
 
 template <class scalar>
-HyperMatrixDense<scalar> HyperMatrixDense<scalar>::operator*(const HyperMatrixDense& other)
+denseMatrix<scalar> denseMatrix<scalar>::operator*(const denseMatrix& other)
 {
 
   // size the result properly
-  HyperMatrixDense<scalar> result;
+  denseMatrix<scalar> result;
   if(!is_transpose() && !other.is_transpose())
     result.resize(rows_,other.cols());
   else if(is_transpose() && !other.is_transpose())
@@ -321,7 +321,7 @@ HyperMatrixDense<scalar> HyperMatrixDense<scalar>::operator*(const HyperMatrixDe
   else if (!is_transpose() && other.is_transpose())
     result.resize(rows_,other.rows());
 
-  HyperMatrixDense<scalar> buffer;
+  denseMatrix<scalar> buffer;
   buffer = other;
 
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(data_.data(),
@@ -348,30 +348,30 @@ HyperMatrixDense<scalar> HyperMatrixDense<scalar>::operator*(const HyperMatrixDe
 }
 
 template <class scalar>
-HyperMatrixDense<scalar> HyperMatrixDense<scalar>::operator*(const double a)
+denseMatrix<scalar> denseMatrix<scalar>::operator*(const double a)
 {
-  HyperMatrixDense<scalar> result;
+  denseMatrix<scalar> result;
   result = *this;
   result *= a;
   return result;
 }
 
 template <class scalar>
-HyperMatrixDense<scalar> HyperMatrixDense<scalar>::transpose()
+denseMatrix<scalar> denseMatrix<scalar>::transpose()
 {
-  HyperMatrixDense<scalar> tmat(data_,rows_,cols_);
+  denseMatrix<scalar> tmat(data_,rows_,cols_);
   tmat.set_transpose();
   return tmat;
 }
 
 template <class scalar>
-void HyperMatrixDense<scalar>::assign(const HyperMatrixDense& other)
+void denseMatrix<scalar>::assign(const denseMatrix& other)
 {
   *this = other;
 }
 
 template <class scalar>
-void HyperMatrixDense<scalar>::setElem(scalar elem, int row, int col)
+void denseMatrix<scalar>::setElem(scalar elem, int row, int col)
 {
   if((row >= rows_) || (col >= cols_))
     std::cerr << "WARNING: requested element is outside of range" << std::endl;
@@ -380,7 +380,7 @@ void HyperMatrixDense<scalar>::setElem(scalar elem, int row, int col)
 }
 
 template <class scalar>
-scalar HyperMatrixDense<scalar>::norm()
+scalar denseMatrix<scalar>::norm()
 {
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(data_.data(),
                                                                         rows_,
@@ -390,7 +390,7 @@ scalar HyperMatrixDense<scalar>::norm()
 }
 
 template <class scalar>
-scalar HyperMatrixDense<scalar>::trace()
+scalar denseMatrix<scalar>::trace()
 {
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(data_.data(),
                                                                         rows_,
@@ -400,13 +400,13 @@ scalar HyperMatrixDense<scalar>::trace()
 }
 
 template <class scalar>
-size_t HyperMatrixDense<scalar>::size()
+size_t denseMatrix<scalar>::size()
 {
   return data_.size();
 }
 
 template <class scalar>
-void HyperMatrixDense<scalar>::print()
+void denseMatrix<scalar>::print()
 {
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(data_.data(), 
                                                                         rows_, 

@@ -27,7 +27,7 @@ set_target_properties(peigen
                       LIBRARY_OUTPUT_DIRECTORY ${LIBDIR})
 
 # find the required packages from boost
-find_package(Boost 1.74 REQUIRED system python)
+find_package(Boost 1.74 REQUIRED system python serialization)
 if(Boost_FOUND)
 	MESSAGE(" -- A library with Boost found.")
         include_directories("${Boost_INCLUDE_DIRS}")

@@ -1,5 +1,5 @@
-#ifndef HYPERMATRIXSPARSE_HPP
-#define HYPERMATRIXSPARSE_HPP
+#ifndef SPARSEMATRIX_HPP
+#define SPARSEMATRIX_HPP
 
 #include <vector>
 #include <fstream>
@@ -14,17 +14,17 @@
 #include <Eigen/Sparse>
 
 template<class scalar>
-class HyperMatrixSparse
+class sparseMatrix
 {
 public:
 
-  HyperMatrixSparse();
+  sparseMatrix();
 
-  HyperMatrixSparse(int rows, int cols);
+  sparseMatrix(int rows, int cols);
  
-  HyperMatrixSparse(int rows, int cols, int nnz);
+  sparseMatrix(int rows, int cols, int nnz);
 
-  HyperMatrixSparse(std::vector<scalar> &data, std::vector<int> &outer_, std::vector<int> &inner_, int rows, int cols);
+  sparseMatrix(std::vector<scalar> &data, std::vector<int> &outer_, std::vector<int> &inner_, int rows, int cols);
  
   void resize(int rows, int cols);
 
@@ -66,15 +66,15 @@ public:
   scalar &operator[](int i) const { return data_[i]; }
   //scalar &operator()(int row, int col);
 
-  HyperMatrixSparse& operator=(const  HyperMatrixSparse& other);
-  HyperMatrixSparse& operator+=(const HyperMatrixSparse& other);
-  HyperMatrixSparse& operator*=(const double a);
-  HyperMatrixSparse  operator*(const double a);
-  HyperMatrixSparse  operator+(const HyperMatrixSparse& other);
-  HyperMatrixSparse  operator*(const HyperMatrixSparse& other);
+  sparseMatrix& operator=(const  sparseMatrix& other);
+  sparseMatrix& operator+=(const sparseMatrix& other);
+  sparseMatrix& operator*=(const double a);
+  sparseMatrix  operator*(const double a);
+  sparseMatrix  operator+(const sparseMatrix& other);
+  sparseMatrix  operator*(const sparseMatrix& other);
 
   /// extra member functions to fascilitation python wrapping
-  void assign(const HyperMatrixSparse& other);
+  void assign(const sparseMatrix& other);
   void setElem(scalar elem, int row, int col);
 
   size_t size();
@@ -110,6 +110,6 @@ private:
 
 };
 
-#include "HyperMatrixSparse_impl.hpp"
+#include "sparseMatrix_impl.hpp"
 
-#endif /*HYPERMATRIXSPARSE_HPP*/
+#endif /*SPARSEMATRIX_HPP*/

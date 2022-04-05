@@ -1,5 +1,5 @@
-#ifndef HYPERMATRIXDENSE_HPP
-#define HYPERMATRIXDENSE_HPP
+#ifndef DENSEMATRIX_HPP
+#define DENSEMATRIX_HPP
 
 #include <vector>
 #include <fstream>
@@ -13,17 +13,17 @@
 #include <Eigen/Core>
 
 template<class scalar>
-class HyperMatrixDense
+class denseMatrix
 {
 public:
 
-  HyperMatrixDense();
+  denseMatrix();
 
-  HyperMatrixDense(int rows, int cols);
+  denseMatrix(int rows, int cols);
 
-  HyperMatrixDense(std::vector<scalar> &data, int rows, int cols);
+  denseMatrix(std::vector<scalar> &data, int rows, int cols);
 
-  HyperMatrixDense(std::vector<scalar> &data, int rows, int cols, bool trnsps);
+  denseMatrix(std::vector<scalar> &data, int rows, int cols, bool trnsps);
  
   void resize(int rows, int cols);
 
@@ -40,15 +40,15 @@ public:
   int cols() const { return cols_; }
   int get_cols();
 
-  HyperMatrixDense get_row(int i);
-  HyperMatrixDense get_col(int i);
-  HyperMatrixDense get_diagonal(int i);
-  HyperMatrixDense get_block(int i, int j, int k, int l);
+  denseMatrix get_row(int i);
+  denseMatrix get_col(int i);
+  denseMatrix get_diagonal(int i);
+  denseMatrix get_block(int i, int j, int k, int l);
 
-  void set_row(int i, const HyperMatrixDense& r);
-  void set_col(int i, const HyperMatrixDense& c);
-  void set_diagonal(int i, const HyperMatrixDense& d);
-  void set_block(int i, int j, int k, int l, const HyperMatrixDense& b);
+  void set_row(int i, const denseMatrix& r);
+  void set_col(int i, const denseMatrix& c);
+  void set_diagonal(int i, const denseMatrix& d);
+  void set_block(int i, int j, int k, int l, const denseMatrix& b);
 
   bool is_transpose() { return transpose_mat; }
   bool is_transpose() const { return transpose_mat; } 
@@ -63,19 +63,19 @@ public:
   scalar &operator[](int i) const { return data_[i]; }
   scalar &operator()(int row, int col) { return data_[row + col*rows_]; }
 
-  HyperMatrixDense& operator=(const  HyperMatrixDense& other);
-  HyperMatrixDense& operator+=(const HyperMatrixDense& other);
-  HyperMatrixDense& operator-=(const HyperMatrixDense& other);
-  HyperMatrixDense& operator*=(const double a);
-  HyperMatrixDense  operator*(const double a);
-  HyperMatrixDense  operator+(const HyperMatrixDense& other);
-  HyperMatrixDense  operator-(const HyperMatrixDense& other);
-  HyperMatrixDense  operator*(const HyperMatrixDense& other);
+  denseMatrix& operator=(const  denseMatrix& other);
+  denseMatrix& operator+=(const denseMatrix& other);
+  denseMatrix& operator-=(const denseMatrix& other);
+  denseMatrix& operator*=(const double a);
+  denseMatrix  operator*(const double a);
+  denseMatrix  operator+(const denseMatrix& other);
+  denseMatrix  operator-(const denseMatrix& other);
+  denseMatrix  operator*(const denseMatrix& other);
 
-  HyperMatrixDense transpose();
+  denseMatrix transpose();
 
   /// extra member functions to fascilitation python wrapping
-  void assign(const HyperMatrixDense& other);
+  void assign(const denseMatrix& other);
   void setElem(scalar elem, int row, int col);
   scalar getElem(int row, int col) { return data_[row + col*rows_]; }
 
@@ -112,6 +112,6 @@ private:
 
 };
 
-#include "HyperMatrixDense_impl.hpp"
+#include "denseMatrix_impl.hpp"
 
 #endif /*HYPERMATRIXDENSE_HPP*/

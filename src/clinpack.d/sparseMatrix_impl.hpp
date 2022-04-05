@@ -1,5 +1,5 @@
 template <class scalar>
-HyperMatrixSparse<scalar>::HyperMatrixSparse()
+sparseMatrix<scalar>::sparseMatrix()
 : rows_(0),
   cols_(0),
   outer_(1,0),
@@ -9,7 +9,7 @@ HyperMatrixSparse<scalar>::HyperMatrixSparse()
 }
 
 template <class scalar>
-HyperMatrixSparse<scalar>::HyperMatrixSparse(int rows, int cols)
+sparseMatrix<scalar>::sparseMatrix(int rows, int cols)
 : rows_(rows),
   cols_(cols),
   outer_(cols+1,0),
@@ -18,7 +18,7 @@ HyperMatrixSparse<scalar>::HyperMatrixSparse(int rows, int cols)
 }
 
 template <class scalar>
-HyperMatrixSparse<scalar>::HyperMatrixSparse(int rows, int cols, int nnz)
+sparseMatrix<scalar>::sparseMatrix(int rows, int cols, int nnz)
 : rows_(rows),
   cols_(cols),
   data_(nnz),
@@ -29,7 +29,7 @@ HyperMatrixSparse<scalar>::HyperMatrixSparse(int rows, int cols, int nnz)
 }
 
 template <class scalar>
-HyperMatrixSparse<scalar>::HyperMatrixSparse(std::vector<scalar> &data, std::vector<int> &outer, std::vector<int> &inner, int rows, int cols)
+sparseMatrix<scalar>::sparseMatrix(std::vector<scalar> &data, std::vector<int> &outer, std::vector<int> &inner, int rows, int cols)
 : data_(data),
   outer_(outer),
   inner_(inner),
@@ -39,7 +39,7 @@ HyperMatrixSparse<scalar>::HyperMatrixSparse(std::vector<scalar> &data, std::vec
 {}
 
 template <class scalar>
-void HyperMatrixSparse<scalar>::resize(int rows, int cols)
+void sparseMatrix<scalar>::resize(int rows, int cols)
 {
   rows_ = rows;
   cols_ = cols;
@@ -47,7 +47,7 @@ void HyperMatrixSparse<scalar>::resize(int rows, int cols)
 }
 
 template <class scalar>
-void HyperMatrixSparse<scalar>::reserve(int rows, int cols, int nnz)
+void sparseMatrix<scalar>::reserve(int rows, int cols, int nnz)
 { 
   rows_ = rows;
   cols_ = cols;
@@ -58,7 +58,7 @@ void HyperMatrixSparse<scalar>::reserve(int rows, int cols, int nnz)
 }
 
 template <class scalar>
-void HyperMatrixSparse<scalar>::clear()
+void sparseMatrix<scalar>::clear()
 {
   nnz_ = 0;
   data_.clear();
@@ -68,7 +68,7 @@ void HyperMatrixSparse<scalar>::clear()
 }
 
 template <class scalar>
-void HyperMatrixSparse<scalar>::save(std::string fname)
+void sparseMatrix<scalar>::save(std::string fname)
 {
   std::ofstream ofs(fname.c_str());
   boost::archive::text_oarchive oa(ofs);
@@ -77,7 +77,7 @@ void HyperMatrixSparse<scalar>::save(std::string fname)
 }
 
 template <class scalar>
-void HyperMatrixSparse<scalar>::load(std::string fname)
+void sparseMatrix<scalar>::load(std::string fname)
 { 
   std::ifstream ifs(fname.c_str());
   boost::archive::text_iarchive ia(ifs);
@@ -86,7 +86,7 @@ void HyperMatrixSparse<scalar>::load(std::string fname)
 }
 
 template <class scalar>
-HyperMatrixSparse<scalar>& HyperMatrixSparse<scalar>::operator=(const HyperMatrixSparse& other)
+sparseMatrix<scalar>& sparseMatrix<scalar>::operator=(const sparseMatrix& other)
 {
   nnz_   = other.nnz();
   rows_  = other.rows();
@@ -97,7 +97,7 @@ HyperMatrixSparse<scalar>& HyperMatrixSparse<scalar>::operator=(const HyperMatri
 }
 
 template <class scalar>
-HyperMatrixSparse<scalar>& HyperMatrixSparse<scalar>::operator+=(const HyperMatrixSparse& other)
+sparseMatrix<scalar>& sparseMatrix<scalar>::operator+=(const sparseMatrix& other)
 {
   if(rows_ != other.rows() || cols_ != other.cols())
   {
@@ -108,7 +108,7 @@ HyperMatrixSparse<scalar>& HyperMatrixSparse<scalar>::operator+=(const HyperMatr
   Eigen::SparseMatrix<scalar> result(rows_,cols_);
 
   {
-    HyperMatrixSparse<scalar> buffer;
+    sparseMatrix<scalar> buffer;
     buffer = other;
     Eigen::Map< Eigen::SparseMatrix<scalar> > x(rows_, cols_, nnz_, outer_.data(), inner_.data(), data_.data());
     Eigen::Map< Eigen::SparseMatrix<scalar> > y(buffer.rows(), buffer.cols(), buffer.nnz(), buffer.outerPtr(), buffer.innerPtr(), buffer.data());
@@ -126,7 +126,7 @@ HyperMatrixSparse<scalar>& HyperMatrixSparse<scalar>::operator+=(const HyperMatr
 }
 
 template <class scalar>
-HyperMatrixSparse<scalar>& HyperMatrixSparse<scalar>::operator*=(const double a)
+sparseMatrix<scalar>& sparseMatrix<scalar>::operator*=(const double a)
 {
 
   Eigen::Map< Eigen::SparseMatrix<scalar> > x(rows_, cols_, nnz_, outer_.data(), inner_.data(), data_.data());
@@ -137,16 +137,16 @@ HyperMatrixSparse<scalar>& HyperMatrixSparse<scalar>::operator*=(const double a)
 }
 
 template <class scalar>
-HyperMatrixSparse<scalar> HyperMatrixSparse<scalar>::operator+(const HyperMatrixSparse& other)
+sparseMatrix<scalar> sparseMatrix<scalar>::operator+(const sparseMatrix& other)
 {
-  HyperMatrixSparse<scalar> result = other;
+  sparseMatrix<scalar> result = other;
   result += *this;
 
   return result;
 }
 
 template <class scalar>
-HyperMatrixSparse<scalar> HyperMatrixSparse<scalar>::operator*(const HyperMatrixSparse& other)
+sparseMatrix<scalar> sparseMatrix<scalar>::operator*(const sparseMatrix& other)
 {
   if(rows_ != other.cols())
   {
@@ -155,10 +155,10 @@ HyperMatrixSparse<scalar> HyperMatrixSparse<scalar>::operator*(const HyperMatrix
   }
 
   Eigen::SparseMatrix<scalar> result(rows_,other.cols());
-  HyperMatrixSparse<scalar> container(rows_,other.cols());
+  sparseMatrix<scalar> container(rows_,other.cols());
 
   {
-    HyperMatrixSparse<scalar> buffer;
+    sparseMatrix<scalar> buffer;
     buffer = other;
     Eigen::Map< Eigen::SparseMatrix<scalar> > x(rows_, cols_, nnz_, outer_.data(), inner_.data(), data_.data());
     Eigen::Map< Eigen::SparseMatrix<scalar> > y(buffer.rows(), buffer.cols(), buffer.nnz(), buffer.outerPtr(), buffer.innerPtr(), buffer.data());
@@ -174,22 +174,22 @@ HyperMatrixSparse<scalar> HyperMatrixSparse<scalar>::operator*(const HyperMatrix
 }
 
 template <class scalar>
-HyperMatrixSparse<scalar> HyperMatrixSparse<scalar>::operator*(const double a)
+sparseMatrix<scalar> sparseMatrix<scalar>::operator*(const double a)
 {
-  HyperMatrixSparse<scalar> result;
+  sparseMatrix<scalar> result;
   result = *this;
   result *= a;
   return result;
 }
 
 template <class scalar>
-void HyperMatrixSparse<scalar>::assign(const HyperMatrixSparse& other)
+void sparseMatrix<scalar>::assign(const sparseMatrix& other)
 {
   *this = other;
 }
 
 template <class scalar>
-void HyperMatrixSparse<scalar>::setElem(scalar elem, int row, int col)
+void sparseMatrix<scalar>::setElem(scalar elem, int row, int col)
 {
   if((row >= rows_) || (col >= cols_))
   {
@@ -226,13 +226,13 @@ void HyperMatrixSparse<scalar>::setElem(scalar elem, int row, int col)
 }
 
 template <class scalar>
-size_t HyperMatrixSparse<scalar>::size()
+size_t sparseMatrix<scalar>::size()
 {
   return data_.size();
 }
 
 template <class scalar>
-void HyperMatrixSparse<scalar>::print()
+void sparseMatrix<scalar>::print()
 {
   Eigen::Map< Eigen::SparseMatrix<scalar> > x(rows_, cols_, nnz_, outer_.data(), inner_.data(), data_.data());
   std::cout << "data =\n" << x << std::endl;
