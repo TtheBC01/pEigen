@@ -3,6 +3,14 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# CMAKE detritus
+/src/lib/
+/src/CMakeFiles/
+/src/CMakeCache.txt
+/src/Makefile
+/src/cmake_install.cmake
+
+
 # C extensions
 *.so
 

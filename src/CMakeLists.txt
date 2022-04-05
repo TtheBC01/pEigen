@@ -21,7 +21,7 @@ find_package(PythonLibs 3 REQUIRED)
 include_directories("${PYTHON_INCLUDE_DIRS}")
 
 # main library for python bindings
-add_library(peigen SHARED pythonwrapper.d/peigen.cxx)
+add_library(peigen SHARED python_bindings.d/peigen.cxx)
 set_target_properties(peigen
                       PROPERTIES
                       LIBRARY_OUTPUT_DIRECTORY ${LIBDIR})
@@ -41,9 +41,6 @@ set(AllTargets peigen)
 INSTALL(TARGETS ${AllTargets} 
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib)
-
-##add_subdirectory(pythonwrapper.d)
-##target_link_libraries(pythonwrapper)
 
 if(NOT CMAKE_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE Release CACHE STRING

@@ -1,20 +1,20 @@
 template <class serialType>
-DenseFactorizationFactory<serialType>::DenseFactorizationFactory()
+denseFactorizationFactory<serialType>::denseFactorizationFactory()
 {}
 
 template <class serialType>
-DenseFactorizationFactory<serialType>::DenseFactorizationFactory(serialType &mat)
+denseFactorizationFactory<serialType>::denseFactorizationFactory(serialType &mat)
 : dense_matrix_(&mat)
 {}
 
 template<class serialType>
-void DenseFactorizationFactory<serialType>::reset(serialType &mat)
+void denseFactorizationFactory<serialType>::reset(serialType &mat)
 {
   dense_matrix_ = &mat;
 }
 
 template<class serialType>
-void DenseFactorizationFactory<serialType>::computeThinSVD()
+void denseFactorizationFactory<serialType>::computeThinSVD()
 {
 
   if(dense_matrix_ == NULL)
@@ -48,7 +48,7 @@ void DenseFactorizationFactory<serialType>::computeThinSVD()
 }
 
 template<class serialType>
-void DenseFactorizationFactory<serialType>::computeQR()
+void denseFactorizationFactory<serialType>::computeQR()
 {
 
   if(dense_matrix_ == NULL)

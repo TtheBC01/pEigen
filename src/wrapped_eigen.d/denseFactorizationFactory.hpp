@@ -9,13 +9,13 @@
 #include <Eigen/Dense>
 
 template <class serialType>
-class DenseFactorizationFactory
+class denseFactorizationFactory
 {
 public:
 
-  DenseFactorizationFactory();
+  denseFactorizationFactory();
 
-  DenseFactorizationFactory(serialType &mat);
+  denseFactorizationFactory(serialType &mat);
 
   void reset(serialType &mat);
 
@@ -43,6 +43,6 @@ private:
 
 };
 
-#include "DenseFactorizationFactory_impl.hpp"
+#include "denseFactorizationFactory_impl.hpp"
 
 #endif /*DENSEFACTORIZATIONFACTORY_HPP*/

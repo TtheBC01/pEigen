@@ -1,8 +1,9 @@
 #include <boost/python.hpp>
 #include <boost/python/suite/indexing/vector_indexing_suite.hpp>
 
-#include <clinpack.d/denseMatrix.hpp>
-#include <clinpack.d/sparseMatrix.hpp>
+#include <wrapped_eigen.d/denseMatrix.hpp>
+#include <wrapped_eigen.d/sparseMatrix.hpp>
+#include <wrapped_eigen.d/denseFactorizationFactory.hpp>
 
 // Copies a C++ vector into a python list container
 template <class T>
@@ -16,13 +17,24 @@ boost::python::list vectorToPythonList(std::vector<T> vector)
   return list;
 }
 
+// Converts a denseMatrix class to a python list
+template <class T>
+boost::python::list denseMatrixToPythonList(denseMatrix<T> matrix) 
+{
+  boost::python::list list;
+  std::vector<T> data = matrix.container();
+  list = vectorToPythonList(data);
+  return list;
+}
+
 // python wrapper of libpeigen module
 BOOST_PYTHON_MODULE(libpeigen)
 {
   using namespace boost::python;
   
-  // this function converts c++ vector to a python list structure
   def("doubleVecToList", &vectorToPythonList<double>);
+  
+  def("denseMatrixToList", &denseMatrixToPythonList<double>);
   
   class_<std::vector<double> >("doubleVec")
     .def(vector_indexing_suite<std::vector<double> >())
@@ -82,5 +94,18 @@ BOOST_PYTHON_MODULE(libpeigen)
     .def("show", &sMDouble::print) // print() is a reserved sytax in python
     .def("save", &sMDouble::save)
     .def("load", &sMDouble::load)
+  ;
+  
+  typedef denseFactorizationFactory<dMDouble> dFFactory;
+  class_<dFFactory>("denseDecomposition")
+    .def(init< >())
+    .def(init<dMDouble&>())
+    .def("reset", &dFFactory::reset)
+    .def("computeThinSVD", &dFFactory::computeThinSVD)
+    .def("computeQR", &dFFactory::computeQR)
+    .def("getU", &dFFactory::getU)
+    .def("getSingularValues", &dFFactory::getSingularValues)
+    .def("getV", &dFFactory::getV)
+    .def("getQ", &dFFactory::getQ)
   ;
 }
