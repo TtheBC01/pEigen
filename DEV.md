@@ -1,0 +1,33 @@
+# Developing
+
+## Docker Environment
+
+This repo comes with a Docker definition file to construct a ubuntu-based development environment that
+is guaranteed to compile. You don't need to install dependencies on you local environment, just install the
+[Docker engine](https://www.docker.com/) and build the pEigen environment:
+
+```
+git clone https://github.com/TtheBC01/pEigen.git
+cd pEigen 
+docker build -t peigen .
+docker run -it --rm --entrypoint bash -v /path/to/pEigen/src:/pEigen peigen 
+```
+This will start an interactive shell session that comes with gcc, cmake, vim, eigen, and boost dev libraries. 
+
+## Compiling
+
+Once you are in the interactive Docker shell, build the python bindings like this:
+
+```
+cmake .
+make
+```
+
+This will produced a shared object library, libpeigen.so, in the `/pEigen/lib` directory. Import this library into 
+a python session as you would any python module.
+
+```
+import sys
+sys.path.append('./lib')
+import libpeigen
+```
