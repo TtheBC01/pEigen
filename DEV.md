@@ -28,15 +28,16 @@ a python session as you would any python module.
 
 ```
 import sys
-sys.path.append('./lib')
+sys.path.append('/pEigen/lib')
 import libpeigen
 ```
 
 ## Extending exposed classes and methods
 
-To expose a new object or method in the pEigen library, you must declare it in `/src/python_bindings.d/peigen.cxx`
+To expose a new object or method in the pEigen library, you must declare it in 
+[`/src/python_bindings.d/peigen.cxx`](/src/python_bindings.d/peigen.cxx)
 (in the Docker interactive environment, its absolute path will be `/pEigen/python_bindings/peigen.cxx`). Specifically, the 
 declaration must appear in the `BOOST_PYTHON_MODULE` block. See 
 [Boost.Python](https://www.boost.org/doc/libs/1_76_0/libs/python/doc/html/tutorial/tutorial/exposing.html) 
 documentation for more details about exposing classes and functions. Place new class definitions in the
-`/src/wrapped_eigen.d/` if you are wrapping a new Eigen object. 
+[`/src/wrapped_eigen.d/`](/src/wrapped_eigen.d) if you are wrapping a new Eigen object. 
