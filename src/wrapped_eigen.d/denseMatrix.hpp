@@ -8,7 +8,7 @@
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/serialization/binary_object.hpp>
 #include <boost/serialization/vector.hpp>
-#include <boost/serialization/complex.hpp>
+#include <boost/python/complex.hpp>
 
 #include <Eigen/Core>
 
@@ -114,4 +114,4 @@ private:
 
 #include "denseMatrix_impl.hpp"
 
-#endif /*HYPERMATRIXDENSE_HPP*/
+#endif /*DENSEMATRIX_HPP*/

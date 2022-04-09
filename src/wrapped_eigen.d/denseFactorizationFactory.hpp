@@ -3,8 +3,6 @@
 
 #include <iostream>
 
-#include <boost/python.hpp>
-
 #include <Eigen/Core>
 #include <Eigen/Dense>
 

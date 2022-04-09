@@ -1,9 +1,14 @@
 import sys
-sys.path.append('./lib')
-import libpeigen
+sys.path.append('/pEigen/src/lib')
+import libpeigen as peigen
 
-data = libpeigen.denseMatrixDouble(4,4)
+data = peigen.denseMatrixDouble(40,40)
 data.setRandom(2)
 print(data.rows())
 print(data.cols())
-data.show()
+print(data.norm())
+
+factorization = peigen.denseDecomposition(data)
+factorization.computeThinSVD()
+S = factorization.getSingularValues()
+print(S.diagonal(0).norm())
