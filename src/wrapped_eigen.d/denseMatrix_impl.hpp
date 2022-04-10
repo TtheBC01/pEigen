@@ -227,6 +227,7 @@ denseMatrix<scalar>& denseMatrix<scalar>::operator=(const denseMatrix& other)
   cols_ = other.cols();
   data_ = other.container();
   transpose_mat = other.is_transpose();
+  return *this;
 }
 
 template <class scalar>
@@ -312,14 +313,35 @@ denseMatrix<scalar> denseMatrix<scalar>::operator*(const denseMatrix& other)
 
   // size the result properly
   denseMatrix<scalar> result;
-  if(!is_transpose() && !other.is_transpose())
-    result.resize(rows_,other.cols());
-  else if(is_transpose() && !other.is_transpose())
-    result.resize(cols_,other.cols());
-  else if (is_transpose() && other.is_transpose())
-    result.resize(cols_,other.rows());
-  else if (!is_transpose() && other.is_transpose())
-    result.resize(rows_,other.rows());
+  if(!is_transpose() && !other.is_transpose()) {
+	  if (cols_ != other.rows()) {
+		  std::cerr << "ERROR: inner dimension mismatch:" << cols_ << " != " << other.rows() << std::endl;
+	      return result;
+	  } else {
+          result.resize(rows_,other.cols());
+	  }
+  } else if(is_transpose() && !other.is_transpose()) {
+	  if (rows_ != other.rows()) {
+		  std::cerr << "ERROR: inner dimension mismatch:" << rows_ << " != " << other.rows() << std::endl;
+	      return result;
+	  } else {
+          result.resize(cols_,other.cols());
+	  }
+  } else if (is_transpose() && other.is_transpose()) {
+	  if (rows_ != other.cols()) {
+		  std::cerr << "ERROR: inner dimension mismatch:" << rows_ << " != " << other.cols() << std::endl;
+	      return result;
+	  } else {
+          result.resize(cols_,other.rows());
+	  }
+  } else if (!is_transpose() && other.is_transpose()) {
+	  if (cols_ != other.cols()) {
+		  std::cerr << "ERROR: inner dimension mismatch:" << cols_ << " != " << other.cols() << std::endl;
+	      return result;
+	  } else {
+          result.resize(rows_,other.rows());
+	  }
+  }
 
   denseMatrix<scalar> buffer;
   buffer = other;
@@ -335,13 +357,13 @@ denseMatrix<scalar> denseMatrix<scalar>::operator*(const denseMatrix& other)
                                                                         result.cols());
 
   if(!is_transpose() && !other.is_transpose())
-    z = x*y;
+    z.noalias() = x*y;
   else if(is_transpose() && !other.is_transpose())
-    z = x.transpose()*y;
+    z.noalias() = x.transpose()*y;
   else if (is_transpose() && other.is_transpose())
-    z = x.transpose()*y.transpose();
+    z.noalias() = x.transpose()*y.transpose();
   else if (!is_transpose() && other.is_transpose())
-    z = x*y.transpose();
+    z.noalias() = x*y.transpose();
 
   
   return result;

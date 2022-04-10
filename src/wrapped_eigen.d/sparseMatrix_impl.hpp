@@ -94,6 +94,7 @@ sparseMatrix<scalar>& sparseMatrix<scalar>::operator=(const sparseMatrix& other)
   data_  = other.data_container();
   inner_ = other.inner_container();
   outer_ = other.outer_container();
+  return *this;
 }
 
 template <class scalar>

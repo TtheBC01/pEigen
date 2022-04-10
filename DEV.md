@@ -32,6 +32,14 @@ import sys
 sys.path.append('/pEigen/src/lib')
 import libpeigen
 ```
+## Running Unit Tests
+
+pEigen uses Python's [`unittest`](https://docs.python.org/3/library/unittest.html#module-unittest) package for unit testing. 
+Test cases are in the `/test` folder. You can run them with Python's built-in CLI:
+
+```shell
+python -m unittest test/test.py
+```
 
 ## Extending exposed classes and methods
 
