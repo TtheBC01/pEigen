@@ -1,9 +1,9 @@
 #include <boost/python.hpp>
 #include <boost/python/suite/indexing/vector_indexing_suite.hpp>
 
-#include <wrapped_eigen.d/denseMatrix.hpp>
-#include <wrapped_eigen.d/sparseMatrix.hpp>
-#include <wrapped_eigen.d/denseFactorizationFactory.hpp>
+#include <wrapped_eigen.d/dense.d/denseMatrix.hpp>
+#include <wrapped_eigen.d/sparse.d/sparseMatrix.hpp>
+#include <wrapped_eigen.d/factorization.d/denseFactorizationFactory.hpp>
 
 // Copies a C++ vector into a python list container
 template <class T>

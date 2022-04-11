@@ -13,8 +13,7 @@ include_directories(/eigen)
 set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DEIGEN_MPL2_ONLY")
 
 # create directies for binaries and python lib
-set(BINDIR ${CMAKE_CURRENT_BINARY_DIR}/bin)
-set(LIBDIR ${CMAKE_CURRENT_BINARY_DIR}/lib)
+set(LIBDIR ${CMAKE_CURRENT_BINARY_DIR}/peigen)
 
 # require python 3 for building
 find_package(PythonLibs 3 REQUIRED)
@@ -39,8 +38,7 @@ endif(Boost_FOUND)
 set(AllTargets peigen)
 
 INSTALL(TARGETS ${AllTargets} 
-        RUNTIME DESTINATION bin
-        LIBRARY DESTINATION lib)
+        LIBRARY DESTINATION peigen)
 
 if(NOT CMAKE_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE Release CACHE STRING
