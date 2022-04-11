@@ -21,9 +21,18 @@ class DenseFactorizationTest(unittest.TestCase):
         UtU = U.transpose()*U
         trace = UtU.trace()
         residual = (trace - UtU.rows())**2/(UtU.rows()**2)
-        res_less_than_eps = (residual < 1e-6)
+        res_less_than_eps = (residual < 1e-9)
         self.assertEqual(res_less_than_eps, True)
         self.assertEqual(norm_greater_than_0, True)
+        
+    def test_qr_decomp(self):
+        self.factorizer.computeQR()
+        Q = self.factorizer.getQ()
+        QtQ = Q.transpose()*Q
+        trace = QtQ.trace()
+        residual = (trace - QtQ.rows())**2/(QtQ.rows()**2)
+        res_less_than_eps = (residual < 1e-9)
+        self.assertEqual(res_less_than_eps, True)
  
 
 if __name__ == '__main__':
