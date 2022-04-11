@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0)
 
 project(PEIGEN)
 
-set(INC_DIR .)
+set(INC_DIR ./src)
 
 set(CMAKE_CXX_STANDARD 20)
 
@@ -13,14 +13,14 @@ include_directories(/eigen)
 set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DEIGEN_MPL2_ONLY")
 
 # create directies for binaries and python lib
-set(LIBDIR ${CMAKE_CURRENT_BINARY_DIR}/peigen)
+set(LIBDIR ${CMAKE_CURRENT_BINARY_DIR}/src/peigen)
 
 # require python 3 for building
 find_package(PythonLibs 3 REQUIRED)
 include_directories("${PYTHON_INCLUDE_DIRS}")
 
 # main library for python bindings
-add_library(peigen SHARED python_bindings.d/peigen.cxx)
+add_library(peigen SHARED ${CMAKE_CURRENT_BINARY_DIR}/src/python_bindings.d/peigen.cxx)
 set_target_properties(peigen
                       PROPERTIES
                       LIBRARY_OUTPUT_DIRECTORY ${LIBDIR})
@@ -38,7 +38,7 @@ endif(Boost_FOUND)
 set(AllTargets peigen)
 
 INSTALL(TARGETS ${AllTargets} 
-        LIBRARY DESTINATION peigen)
+        LIBRARY DESTINATION /src/peigen)
 
 if(NOT CMAKE_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE Release CACHE STRING

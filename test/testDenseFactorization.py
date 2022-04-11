@@ -5,8 +5,8 @@ import libpeigen as peigen
 
 class DenseFactorizationTest(unittest.TestCase):
     def setUp(self):
-        self.rows = 10
-        self.cols = 10
+        self.rows = 1000
+        self.cols = 1000
         
         self.dense_matrix = peigen.denseMatrixDouble(self.rows, self.cols)
         self.dense_matrix.setRandom(1)
