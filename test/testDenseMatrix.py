@@ -1,12 +1,12 @@
 import unittest
 import sys
-sys.path.append('/pEigen/src/lib')
+sys.path.append('/pEigen/src/peigen')
 import libpeigen as peigen
 
 class DenseMatrixTest(unittest.TestCase):
     def setUp(self):
-        self.rows = 20
-        self.cols = 30
+        self.rows = 2000
+        self.cols = 3000
         self.dense_matrix = peigen.denseMatrixDouble(self.rows, self.cols)
         self.dense_matrix.setRandom(1)
         

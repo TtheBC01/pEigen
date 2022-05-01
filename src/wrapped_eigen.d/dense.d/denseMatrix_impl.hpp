@@ -241,14 +241,27 @@ denseMatrix<scalar>& denseMatrix<scalar>::operator+=(const denseMatrix& other)
                                                                         buffer.rows(),
                                                                         buffer.cols());
 
-  if(!is_transpose() && !other.is_transpose())
+  if(!is_transpose() && !other.is_transpose()) {
+	if((x.rows() != y.rows()) && (x.cols() != y.cols())) {
+	  throw dM; 
+    }  
     x += y;
-  else if(is_transpose() && !other.is_transpose())
+  } else if(is_transpose() && !other.is_transpose()) {
+	if((x.cols() != y.rows()) && (x.rows() != y.cols())) {
+	  throw dM; 
+    }  
     x.transpose() += y;
-  else if (is_transpose() && other.is_transpose())
+  } else if (is_transpose() && other.is_transpose()) {
+	if((x.rows() != y.rows()) && (x.cols() != y.cols())) {
+	  throw dM; 
+    }  
     x.transpose() += y.transpose();
-  else if (!is_transpose() && other.is_transpose())
+  } else if (!is_transpose() && other.is_transpose()) {
+	if((x.rows() != y.cols()) && (x.cols() != y.rows())) {
+	  throw dM; 
+    }	
     x += y.transpose();
+  }
 
 
   return *this;
@@ -266,14 +279,27 @@ denseMatrix<scalar>& denseMatrix<scalar>::operator-=(const denseMatrix& other)
                                                                         buffer.rows(),
                                                                         buffer.cols());
 
-  if(!is_transpose() && !other.is_transpose())
+  if(!is_transpose() && !other.is_transpose()) {
+	if((x.rows() != y.rows()) && (x.cols() != y.cols())) {
+	  throw dM; 
+    } 
     x -= y;
-  else if(is_transpose() && !other.is_transpose())
+  } else if(is_transpose() && !other.is_transpose()) {
+	if((x.cols() != y.rows()) && (x.rows() != y.cols())) {
+	  throw dM; 
+    }  
     x.transpose() -= y;
-  else if (is_transpose() && other.is_transpose())
+  } else if (is_transpose() && other.is_transpose()) {
+	if((x.rows() != y.rows()) && (x.cols() != y.cols())) {
+	  throw dM; 
+    } 
     x.transpose() -= y.transpose();
-  else if (!is_transpose() && other.is_transpose())
+  } else if (!is_transpose() && other.is_transpose()) {
+	if((x.rows() != y.cols()) && (x.cols() != y.rows())) {
+	  throw dM; 
+    }	
     x -= y.transpose();
+  }
 
   return *this;
 }
@@ -315,29 +341,25 @@ denseMatrix<scalar> denseMatrix<scalar>::operator*(const denseMatrix& other)
   denseMatrix<scalar> result;
   if(!is_transpose() && !other.is_transpose()) {
 	  if (cols_ != other.rows()) {
-		  std::cerr << "ERROR: inner dimension mismatch:" << cols_ << " != " << other.rows() << std::endl;
-	      return result;
+		  throw dM;
 	  } else {
           result.resize(rows_,other.cols());
 	  }
   } else if(is_transpose() && !other.is_transpose()) {
 	  if (rows_ != other.rows()) {
-		  std::cerr << "ERROR: inner dimension mismatch:" << rows_ << " != " << other.rows() << std::endl;
-	      return result;
+		  throw dM;
 	  } else {
           result.resize(cols_,other.cols());
 	  }
   } else if (is_transpose() && other.is_transpose()) {
 	  if (rows_ != other.cols()) {
-		  std::cerr << "ERROR: inner dimension mismatch:" << rows_ << " != " << other.cols() << std::endl;
-	      return result;
+		  throw dM;
 	  } else {
           result.resize(cols_,other.rows());
 	  }
   } else if (!is_transpose() && other.is_transpose()) {
 	  if (cols_ != other.cols()) {
-		  std::cerr << "ERROR: inner dimension mismatch:" << cols_ << " != " << other.cols() << std::endl;
-	      return result;
+		  throw dM;
 	  } else {
           result.resize(rows_,other.rows());
 	  }

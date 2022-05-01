@@ -14,7 +14,7 @@ void denseFactorizationFactory<serialType>::reset(serialType &mat)
 }
 
 template<class serialType>
-void denseFactorizationFactory<serialType>::computeThinSVD()
+void denseFactorizationFactory<serialType>::BDCSVD()
 {
 
   if(dense_matrix_ == NULL)
@@ -48,7 +48,7 @@ void denseFactorizationFactory<serialType>::computeThinSVD()
 }
 
 template<class serialType>
-void denseFactorizationFactory<serialType>::computeQR()
+void denseFactorizationFactory<serialType>::HouseholderQR()
 {
 
   if(dense_matrix_ == NULL)
@@ -68,6 +68,33 @@ void denseFactorizationFactory<serialType>::computeQR()
                                                                              Q.rows(),
                                                                              Q.cols());
     Qbuf = qr.householderQ();
+  }
+
+}
+
+template<class serialType>
+void denseFactorizationFactory<serialType>::PartialPivLU()
+{
+
+  if(dense_matrix_ == NULL)
+  {
+    std::cerr << "Nothing to decompose..." << std::endl;
+  } else {
+	if (dense_matrix_->rows() != dense_matrix_->cols()) {
+		std::cerr << "ERROR: LU Decomposition is only for square matrices" << std::endl;
+	} else {
+      Eigen::Map< Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> > y(dense_matrix_->data(),
+                                                                            dense_matrix_->rows(),
+                                                                            dense_matrix_->cols());
+
+      Eigen::PartialPivLU<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic> > PPLU(y);
+
+/*       Q.resize(qr.householderQ().rows(),qr.householderQ().cols());
+      Eigen::Map< Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> > Qbuf(Q.data(),
+                                                                             Q.rows(),
+                                                                             Q.cols());
+      Qbuf = qr.householderQ(); */
+	}
   }
 
 }

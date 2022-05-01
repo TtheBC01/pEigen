@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <fstream>
+#include <exception>
 
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
@@ -10,6 +11,14 @@
 #include <boost/serialization/vector.hpp>
 
 #include <Eigen/Core>
+
+class dimensionMismatch: public std::exception 
+{
+  virtual const char* what() const throw()
+  {
+    return "Dimension Mismatch. Operation not possible.";
+  }
+} dM;
 
 template<class scalar>
 class denseMatrix

@@ -17,9 +17,11 @@ public:
 
   void reset(serialType &mat);
 
-  void computeThinSVD();
+  void BDCSVD();
 
-  void computeQR();
+  void HouseholderQR();
+  
+  void PartialPivLU();
 
   serialType getU() { return U; }
 

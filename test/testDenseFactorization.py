@@ -1,6 +1,6 @@
 import unittest
 import sys
-sys.path.append('/pEigen/src/lib')
+sys.path.append('/pEigen/src/peigen')
 import libpeigen as peigen
 
 class DenseFactorizationTest(unittest.TestCase):
@@ -14,7 +14,7 @@ class DenseFactorizationTest(unittest.TestCase):
         self.factorizer = peigen.denseDecomposition(self.dense_matrix)
         
     def test_thin_svd(self):
-        self.factorizer.computeThinSVD()
+        self.factorizer.BDCSVD()
         S = self.factorizer.getSingularValues()
         norm_greater_than_0 = (S.diagonal(0).norm() > 0)
         U = self.factorizer.getU()
@@ -26,7 +26,7 @@ class DenseFactorizationTest(unittest.TestCase):
         self.assertEqual(norm_greater_than_0, True)
         
     def test_qr_decomp(self):
-        self.factorizer.computeQR()
+        self.factorizer.HouseholderQR()
         Q = self.factorizer.getQ()
         QtQ = Q.transpose()*Q
         trace = QtQ.trace()
