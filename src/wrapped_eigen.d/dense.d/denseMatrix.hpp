@@ -18,7 +18,7 @@ class dimensionMismatch: public std::exception
   {
     return "Dimension Mismatch. Operation not possible.";
   }
-} dM;
+} dimensionMismatch;
 
 template<class scalar>
 class denseMatrix
@@ -64,8 +64,11 @@ public:
   std::vector<scalar>& container() { return data_; }
   std::vector<scalar>  container() const { return data_; }
 
+  Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > getEigenMap(); 
+  Eigen::Map< const Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > getEigenMap() const; 
+
   scalar* data() { return data_.data(); }
-  scalar* data() const { return data_.data(); }
+  const scalar* data() const { return data_.data(); }
  
   scalar &operator[](int i) { return data_[i]; }
   scalar &operator[](int i) const { return data_[i]; }

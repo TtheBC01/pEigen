@@ -158,67 +158,72 @@ denseMatrix<scalar> denseMatrix<scalar>::get_block(int row, int col, int nrows, 
 template <class scalar>
 void denseMatrix<scalar>::set_row(int row, const denseMatrix& rmat)
 {
+  if((rmat.rows() != 1) && (rmat.cols() != cols_))
+    throw dimensionMismatch;
 
-  denseMatrix<scalar> buffer = rmat; 
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(this->data(),
                                                                         rows_,
                                                                         cols_);
-
-  Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > y(buffer.data(),
-                                                                        buffer.rows(),
-                                                                        buffer.cols());
   
-  x.row(row) = y;
+  x.row(row) = rmat.getEigenMap();
 }
 
 template <class scalar>
 void denseMatrix<scalar>::set_col(int col, const denseMatrix& cmat)
 {
+  if((cmat.cols() != 1) && (cmat.rows() != rows_))
+    throw dimensionMismatch;
 
-  denseMatrix<scalar> buffer = cmat; 
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(this->data(),
                                                                         rows_,
                                                                         cols_);
 
-  Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > y(buffer.data(),
-                                                                        buffer.rows(),
-                                                                        buffer.cols());
-
-  x.col(col) = y;
+  x.col(col) = cmat.getEigenMap();
 }
     
 template <class scalar>
 void denseMatrix<scalar>::set_diagonal(int d, const denseMatrix& dmat)
 { 
-
-  denseMatrix<scalar> buffer = dmat; 
+  // TODO: put some checks on the dimensions to ensure gracefull failure
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(this->data(),
                                                                         rows_,
                                                                         cols_);
 
-  Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > y(buffer.data(),
-                                                                        buffer.rows(),
-                                                                        buffer.cols());
-
-  x.diagonal(d) = y;
+  x.diagonal(d) = dmat.getEigenMap();
 }
 
 template <class scalar>
 void denseMatrix<scalar>::set_block(int i, int j, int k, int l, const denseMatrix& bmat)
 {
+  if ((k != bmat.rows()) && (l != bmat.cols()))
+    throw dimensionMismatch;
 
-  denseMatrix<scalar> buffer = bmat; 
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(this->data(),
                                                                         rows_,
                                                                         cols_);
 
-  Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > y(buffer.data(),
-                                                                        buffer.rows(),
-                                                                        buffer.cols());
-
-  x.block(i,j,k,l) = y;
+  x.block(i,j,k,l) = bmat.getEigenMap();
 }
 
+template <class scalar>
+Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > denseMatrix<scalar>::getEigenMap()
+{
+  Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(this->data(),
+                                                                        rows_,
+                                                                        cols_);
+
+  return x;
+} 
+
+template <class scalar>
+Eigen::Map< const Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > denseMatrix<scalar>::getEigenMap() const
+{
+  Eigen::Map< const Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(this->data(),
+                                                                              rows_,
+                                                                              cols_);
+
+  return x;
+} 
 
 template <class scalar>
 denseMatrix<scalar>& denseMatrix<scalar>::operator=(const denseMatrix& other)
@@ -233,34 +238,30 @@ denseMatrix<scalar>& denseMatrix<scalar>::operator=(const denseMatrix& other)
 template <class scalar>
 denseMatrix<scalar>& denseMatrix<scalar>::operator+=(const denseMatrix& other)
 {
-  denseMatrix<scalar> buffer = other;
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(this->data(),
                                                                         rows_,
                                                                         cols_);
-  Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > y(buffer.data(),
-                                                                        buffer.rows(),
-                                                                        buffer.cols());
 
   if(!is_transpose() && !other.is_transpose()) {
-	if((x.rows() != y.rows()) && (x.cols() != y.cols())) {
-	  throw dM; 
+	if((x.rows() != other.rows()) && (x.cols() != other.cols())) {
+	  throw dimensionMismatch; 
     }  
-    x += y;
+    x += other.getEigenMap();
   } else if(is_transpose() && !other.is_transpose()) {
-	if((x.cols() != y.rows()) && (x.rows() != y.cols())) {
-	  throw dM; 
+	if((x.cols() != other.rows()) && (x.rows() != other.cols())) {
+	  throw dimensionMismatch; 
     }  
-    x.transpose() += y;
+    x.transpose() += other.getEigenMap();
   } else if (is_transpose() && other.is_transpose()) {
-	if((x.rows() != y.rows()) && (x.cols() != y.cols())) {
-	  throw dM; 
+	if((x.rows() != other.rows()) && (x.cols() != other.cols())) {
+	  throw dimensionMismatch; 
     }  
-    x.transpose() += y.transpose();
+    x.transpose() += other.getEigenMap().transpose();
   } else if (!is_transpose() && other.is_transpose()) {
-	if((x.rows() != y.cols()) && (x.cols() != y.rows())) {
-	  throw dM; 
+	if((x.rows() != other.cols()) && (x.cols() != other.rows())) {
+	  throw dimensionMismatch; 
     }	
-    x += y.transpose();
+    x += other.getEigenMap().transpose();
   }
 
 
@@ -270,35 +271,30 @@ denseMatrix<scalar>& denseMatrix<scalar>::operator+=(const denseMatrix& other)
 template <class scalar>
 denseMatrix<scalar>& denseMatrix<scalar>::operator-=(const denseMatrix& other)
 {
-  denseMatrix<scalar> buffer;
-  buffer = other;
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(this->data(),
                                                                         rows_,
                                                                         cols_);
-  Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > y(buffer.data(),
-                                                                        buffer.rows(),
-                                                                        buffer.cols());
 
   if(!is_transpose() && !other.is_transpose()) {
-	if((x.rows() != y.rows()) && (x.cols() != y.cols())) {
-	  throw dM; 
+	if((x.rows() != other.rows()) && (x.cols() != other.cols())) {
+	  throw dimensionMismatch; 
     } 
-    x -= y;
+    x -= other.getEigenMap();
   } else if(is_transpose() && !other.is_transpose()) {
-	if((x.cols() != y.rows()) && (x.rows() != y.cols())) {
-	  throw dM; 
+	if((x.cols() != other.rows()) && (x.rows() != other.cols())) {
+	  throw dimensionMismatch; 
     }  
-    x.transpose() -= y;
+    x.transpose() -= other.getEigenMap();
   } else if (is_transpose() && other.is_transpose()) {
-	if((x.rows() != y.rows()) && (x.cols() != y.cols())) {
-	  throw dM; 
+	if((x.rows() != other.rows()) && (x.cols() != other.cols())) {
+	  throw dimensionMismatch; 
     } 
-    x.transpose() -= y.transpose();
+    x.transpose() -= other.getEigenMap().transpose();
   } else if (!is_transpose() && other.is_transpose()) {
-	if((x.rows() != y.cols()) && (x.cols() != y.rows())) {
-	  throw dM; 
+	if((x.rows() != other.cols()) && (x.cols() != other.rows())) {
+	  throw dimensionMismatch; 
     }	
-    x -= y.transpose();
+    x -= other.getEigenMap().transpose();
   }
 
   return *this;
@@ -341,53 +337,46 @@ denseMatrix<scalar> denseMatrix<scalar>::operator*(const denseMatrix& other)
   denseMatrix<scalar> result;
   if(!is_transpose() && !other.is_transpose()) {
 	  if (cols_ != other.rows()) {
-		  throw dM;
+		  throw dimensionMismatch;
 	  } else {
           result.resize(rows_,other.cols());
 	  }
   } else if(is_transpose() && !other.is_transpose()) {
 	  if (rows_ != other.rows()) {
-		  throw dM;
+		  throw dimensionMismatch;
 	  } else {
           result.resize(cols_,other.cols());
 	  }
   } else if (is_transpose() && other.is_transpose()) {
 	  if (rows_ != other.cols()) {
-		  throw dM;
+		  throw dimensionMismatch;
 	  } else {
           result.resize(cols_,other.rows());
 	  }
   } else if (!is_transpose() && other.is_transpose()) {
 	  if (cols_ != other.cols()) {
-		  throw dM;
+		  throw dimensionMismatch;
 	  } else {
           result.resize(rows_,other.rows());
 	  }
   }
 
-  denseMatrix<scalar> buffer;
-  buffer = other;
-
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > x(data_.data(),
                                                                         rows_,
                                                                         cols_);
-  Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > y(buffer.data(),
-                                                                        buffer.rows(),
-                                                                        buffer.cols());
   Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > z(result.data(),
                                                                         result.rows(),
                                                                         result.cols());
 
   if(!is_transpose() && !other.is_transpose())
-    z.noalias() = x*y;
+    z.noalias() = x*other.getEigenMap();
   else if(is_transpose() && !other.is_transpose())
-    z.noalias() = x.transpose()*y;
+    z.noalias() = x.transpose()*other.getEigenMap();
   else if (is_transpose() && other.is_transpose())
-    z.noalias() = x.transpose()*y.transpose();
+    z.noalias() = x.transpose()*other.getEigenMap().transpose();
   else if (!is_transpose() && other.is_transpose())
-    z.noalias() = x*y.transpose();
+    z.noalias() = x*other.getEigenMap().transpose();
 
-  
   return result;
 }
 
