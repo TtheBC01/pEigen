@@ -1,4 +1,4 @@
-FROM python:3.9
+FROM python:3.12
 
 RUN apt update && \
     apt install -y cmake \
@@ -6,7 +6,6 @@ RUN apt update && \
 				   vim \ 
 				   libboost-all-dev\ 
 				   clang-tidy
-RUN git clone https://gitlab.com/libeigen/eigen.git
 
 RUN python -m pip install --upgrade pip
 RUN python -m pip install --upgrade build
