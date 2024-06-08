@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.25)
 project(PEIGEN)
 
 # set C++ to version 14 and only use Eigen lib components that are MPL2 licenced
@@ -32,7 +32,8 @@ endif(Boost_FOUND)
 
 set(AllTargets peigen)
 
-INSTALL(TARGETS ${AllTargets} LIBRARY DESTINATION /src/peigen)
+INSTALL(TARGETS ${AllTargets} LIBRARY DESTINATION src/peigen)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/src/peigen)
 
 if(NOT CMAKE_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None Debug Release." FORCE)

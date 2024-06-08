@@ -19,8 +19,7 @@ This will start an interactive shell session that comes with gcc, cmake, vim, ei
 Once you are in the interactive Docker shell, build the python bindings like this:
 
 ```
-cmake .
-make
+python -m build --wheel .
 ```
 
 This will produced a shared object library, `libpeigen.so`, in the `/pEigen/src/peigen` directory. Import this library into 
