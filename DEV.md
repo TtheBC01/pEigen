@@ -14,22 +14,14 @@ docker run -it --rm --name peigen -v /path/to/pEigen/:/pEigen --entrypoint bash 
 ```
 This will start an interactive shell session that comes with gcc, cmake, vim, eigen, and boost dev libraries. 
 
-## Compiling
+## Building
 
 Once you are in the interactive Docker shell, build the python bindings like this:
 
 ```
-python -m build --wheel .
+pip install . --verbose
 ```
 
-This will produced a shared object library, `libpeigen.so`, in the `/pEigen/src/peigen` directory. Import this library into 
-a python session as you would any python module.
-
-```
-import sys
-sys.path.append('/pEigen/src/peigen')
-import libpeigen
-```
 ## Running Unit Tests
 
 pEigen uses Python's [`unittest`](https://docs.python.org/3/library/unittest.html#module-unittest) package for unit testing. 

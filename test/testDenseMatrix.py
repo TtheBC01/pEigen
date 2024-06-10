@@ -1,6 +1,5 @@
 import unittest
 import sys
-sys.path.append('/pEigen/src/peigen')
 import libpeigen as peigen
 
 class DenseMatrixTest(unittest.TestCase):

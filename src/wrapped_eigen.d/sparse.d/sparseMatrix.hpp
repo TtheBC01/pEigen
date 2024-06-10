@@ -73,7 +73,7 @@ public:
   sparseMatrix  operator+(const sparseMatrix& other);
   sparseMatrix  operator*(const sparseMatrix& other);
 
-  /// extra member functions to fascilitation python wrapping
+  /// extra member functions to facilitate python wrapping
   void assign(const sparseMatrix& other);
   void setElem(scalar elem, int row, int col);
 
