@@ -1,5 +1,13 @@
-include LICENSE
+#
+# MANIFEST.in
+#
+# Manifest template for peigen source distribution
+
+include MANIFEST.in
+include setup.py
 include README.md
-include CMakeLists.txt
-recursive-include src *
-recursive-include eigen *
+include LICENSE
+
+# sources
+recursive-include src **
+recursive-include eigen **
