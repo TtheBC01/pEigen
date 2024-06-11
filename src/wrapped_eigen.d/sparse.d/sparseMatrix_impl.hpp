@@ -111,6 +111,30 @@ int sparseMatrix<scalar>::get_cols()
 }
 
 template <class scalar>
+sparseMatrix<scalar> sparseMatrix<scalar>::get_col(int col)
+{
+
+  int start = outer_[col];
+  int end = outer_[col+1];
+  int nnz = end - start;
+
+  std::vector<int> newInner(nnz);
+  std::vector<scalar> newData(nnz);
+  for(int i = 0; i < nnz; i++) {
+    newInner[i] = inner_[i+start];
+    newData[i] = data_[i+start];
+  }
+
+  std::vector<int> newOuter(2);
+  newOuter[0] = 0;
+  newOuter[1] = nnz;
+
+  sparseMatrix newCol(newData, newOuter, newInner, rows_, 1);
+
+  return newCol;
+}
+
+template <class scalar>
 sparseMatrix<scalar> &sparseMatrix<scalar>::operator=(const sparseMatrix &other)
 {
   nnz_ = other.nnz();
@@ -232,7 +256,7 @@ void sparseMatrix<scalar>::setElem(scalar elem, int row, int col)
   else
   {
 
-    // get nnz up to row befor insertion row
+    // get nnz up to row before insertion row
     if (nnz_ > 0)
     {
       int nnz1 = outer_[col];     // number of slots to skip
@@ -240,7 +264,7 @@ void sparseMatrix<scalar>::setElem(scalar elem, int row, int col)
       std::vector<int>::iterator itInner = inner_.begin() + nnz1;
       std::vector<int>::iterator itInnerStop = inner_.begin() + nnz2;
       typename std::vector<scalar>::iterator itData = data_.begin() + nnz1;
-      if (nnz1 == nnz2) // then theres nothing in the column yet
+      if (nnz1 != nnz2) // then theres nothing in the column yet
       {
         // find where to insert in the row indices
         for (; itInner != itInnerStop; itInner++, itData++)
@@ -281,6 +305,19 @@ void sparseMatrix<scalar>::print()
   else
     std::cout << "data = \n"
               << x.transpose() << std::endl;
+}
+
+template <class scalar>
+void sparseMatrix<scalar>::print_block(int startRow, int startCol, int rows, int cols)
+{
+  Eigen::Map<Eigen::SparseMatrix<scalar>> x(rows_, cols_, nnz_, outer_.data(), inner_.data(), data_.data());
+
+  if (!is_transpose())
+    std::cout << "data =\n"
+              << x.block(startRow, startCol, rows, cols) << std::endl;
+  else
+    std::cout << "data = \n"
+              << x.transpose().block(startRow, startCol, rows, cols) << std::endl;
 }
 
 template <class scalar>

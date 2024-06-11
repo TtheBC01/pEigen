@@ -46,6 +46,8 @@ public:
   int cols() const { return cols_; }
   int get_cols();
 
+  sparseMatrix get_col(int col);
+
   bool is_transpose() { return transpose_mat; }
   bool is_transpose() const { return transpose_mat; } 
 
@@ -87,6 +89,7 @@ public:
   size_t size();
 
   void print();
+  void print_block(int startRow, int startCol, int rows, int cols);
 
   scalar norm();
 

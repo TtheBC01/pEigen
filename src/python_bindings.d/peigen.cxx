@@ -91,6 +91,7 @@ BOOST_PYTHON_MODULE(libpeigen)
       .def("norm", &sMDouble::norm)
       .def("rows", &sMDouble::get_rows)
       .def("cols", &sMDouble::get_cols)
+      .def("col", &sMDouble::get_col)
       .def("transpose", &sMDouble::transpose)
       .def(self += self)
       .def(self *= int())
@@ -100,6 +101,7 @@ BOOST_PYTHON_MODULE(libpeigen)
       .def(self + self)
       .def(self * self)
       .def("show", &sMDouble::print) // print() is a reserved syntax in python
+      .def("show_block", &sMDouble::print_block)
       .def("save", &sMDouble::save)
       .def("load", &sMDouble::load);
 
