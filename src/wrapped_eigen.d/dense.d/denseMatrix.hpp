@@ -115,6 +115,7 @@ private:
   int cols_;
   int rows_;
   
+  // track if matrix is transposed
   bool transpose_mat;
   void set_transpose() { transpose_mat = true; }
 

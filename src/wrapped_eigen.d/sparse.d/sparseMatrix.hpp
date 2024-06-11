@@ -40,9 +40,14 @@ public:
 
   int rows() { return rows_; }
   int rows() const { return rows_; }
+  int get_rows();
 
   int cols() { return cols_; }
   int cols() const { return cols_; }
+  int get_cols();
+
+  bool is_transpose() { return transpose_mat; }
+  bool is_transpose() const { return transpose_mat; } 
 
   std::vector<scalar>& data_container() { return data_; }
   std::vector<scalar>  data_container() const { return data_; }
@@ -73,6 +78,8 @@ public:
   sparseMatrix  operator+(const sparseMatrix& other);
   sparseMatrix  operator*(const sparseMatrix& other);
 
+  sparseMatrix transpose();
+
   /// extra member functions to facilitate python wrapping
   void assign(const sparseMatrix& other);
   void setElem(scalar elem, int row, int col);
@@ -80,6 +87,8 @@ public:
   size_t size();
 
   void print();
+
+  scalar norm();
 
 private:
 
@@ -100,7 +109,11 @@ private:
   int cols_;
   int rows_;
   int nnz_;
-  
+
+  // track if matrix is transposed
+  bool transpose_mat;
+  void set_transpose() { transpose_mat = true; }
+
   /// container class to hold data for eigen map
   std::vector<scalar> data_; 
 

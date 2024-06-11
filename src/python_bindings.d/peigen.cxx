@@ -7,19 +7,20 @@
 
 // Copies a C++ vector into a python list container
 template <class T>
-boost::python::list vectorToPythonList(std::vector<T> vector) 
+boost::python::list vectorToPythonList(std::vector<T> vector)
 {
   typename std::vector<T>::iterator iter;
   boost::python::list list;
-  for (iter = vector.begin(); iter != vector.end(); ++iter) {
-      list.append(*iter);
+  for (iter = vector.begin(); iter != vector.end(); ++iter)
+  {
+    list.append(*iter);
   }
   return list;
 }
 
 // Converts a denseMatrix class to a python list
 template <class T>
-boost::python::list denseMatrixToPythonList(denseMatrix<T> matrix) 
+boost::python::list denseMatrixToPythonList(denseMatrix<T> matrix)
 {
   boost::python::list list;
   std::vector<T> data = matrix.container();
@@ -31,88 +32,87 @@ boost::python::list denseMatrixToPythonList(denseMatrix<T> matrix)
 BOOST_PYTHON_MODULE(libpeigen)
 {
   using namespace boost::python;
-  
+
   def("doubleVecToList", &vectorToPythonList<double>);
-  
+
   def("denseMatrixToList", &denseMatrixToPythonList<double>);
-  
-  class_<std::vector<double> >("doubleVec")
-    .def(vector_indexing_suite<std::vector<double> >())
-  ;
-  
-  class_<std::vector<float> >("floatVec")
-    .def(vector_indexing_suite<std::vector<float> >())
-  ;
-  
+
+  class_<std::vector<double>>("doubleVec")
+      .def(vector_indexing_suite<std::vector<double>>());
+
+  class_<std::vector<float>>("floatVec")
+      .def(vector_indexing_suite<std::vector<float>>());
+
   typedef denseMatrix<double> dMDouble;
   class_<dMDouble>("denseMatrixDouble")
-    .def(init< >())
-    .def(init<int,int>())
-    .def(init<std::vector<double>&,int,int>())
-    .def("resize", &dMDouble::resize)
-    .def("setRandom", &dMDouble::setRandom)
-    .def("assign", &dMDouble::assign)  // operator= not accessable in python
-    .def("setElem", &dMDouble::setElem) 
-    .def("getElem", &dMDouble::getElem)
-    .def("norm", &dMDouble::norm)
-    .def("trace", &dMDouble::trace)
-    .def("transpose",  &dMDouble::transpose)
-    .def(self += self)
-    .def(self *= int())
-    .def(self * int())
-	  .def(self *= float())
-    .def(self * float())
-    .def(self + self)
-    .def(self - self)
-    .def(self * self)
-    .def("show", &dMDouble::print) // print() is a reserved sytax in python
-    .def("rows", &dMDouble::get_rows)
-    .def("row", &dMDouble::get_row)
-    .def("cols", &dMDouble::get_cols)
-    .def("col", &dMDouble::get_col)
-    .def("diagonal", &dMDouble::get_diagonal)
-    .def("block", &dMDouble::get_block)
-    .def("setRow", &dMDouble::set_row)
-    .def("setCol", &dMDouble::set_col)
-    .def("setDiagonal", &dMDouble::set_diagonal)
-    .def("setBlock", &dMDouble::set_block)
-    .def("save", &dMDouble::save)
-    .def("load", &dMDouble::load)
-  ;
-  
+      .def(init<>())
+      .def(init<int, int>())
+      .def(init<std::vector<double> &, int, int>())
+      .def("resize", &dMDouble::resize)
+      .def("setRandom", &dMDouble::setRandom)
+      .def("assign", &dMDouble::assign) // operator= not accessible in python
+      .def("setElem", &dMDouble::setElem)
+      .def("getElem", &dMDouble::getElem)
+      .def("norm", &dMDouble::norm)
+      .def("trace", &dMDouble::trace)
+      .def("transpose", &dMDouble::transpose)
+      .def(self += self)
+      .def(self *= int())
+      .def(self * int())
+      .def(self *= float())
+      .def(self * float())
+      .def(self + self)
+      .def(self - self)
+      .def(self * self)
+      .def("show", &dMDouble::print) // print() is a reserved syntax in python
+      .def("rows", &dMDouble::get_rows)
+      .def("row", &dMDouble::get_row)
+      .def("cols", &dMDouble::get_cols)
+      .def("col", &dMDouble::get_col)
+      .def("diagonal", &dMDouble::get_diagonal)
+      .def("block", &dMDouble::get_block)
+      .def("setRow", &dMDouble::set_row)
+      .def("setCol", &dMDouble::set_col)
+      .def("setDiagonal", &dMDouble::set_diagonal)
+      .def("setBlock", &dMDouble::set_block)
+      .def("save", &dMDouble::save)
+      .def("load", &dMDouble::load);
+
   typedef sparseMatrix<double> sMDouble;
   class_<sMDouble>("sparseMatrixDouble")
-    .def(init< >())
-    .def(init<int,int>())
-    .def(init<int,int,int>())
-    .def(init<std::vector<double>&,std::vector<int>&,std::vector<int>&,int,int>())
-    .def("resize", &sMDouble::resize)
-    .def("reserve", &sMDouble::reserve)
-    .def("assign", &sMDouble::assign)  // operator= not accessable in python
-    .def("setElem", &sMDouble::setElem) // 
-    .def(self += self)
-    .def(self *= int())
-    .def(self * int())
-    .def(self *= float())
-    .def(self * float())
-    .def(self + self)
-    .def(self * self)
-    .def("show", &sMDouble::print) // print() is a reserved sytax in python
-    .def("save", &sMDouble::save)
-    .def("load", &sMDouble::load)
-  ;
-  
+      .def(init<>())
+      .def(init<int, int>())
+      .def(init<int, int, int>())
+      .def(init<std::vector<double> &, std::vector<int> &, std::vector<int> &, int, int>())
+      .def("resize", &sMDouble::resize)
+      .def("reserve", &sMDouble::reserve)
+      .def("assign", &sMDouble::assign)   // operator= not accessible in python
+      .def("setElem", &sMDouble::setElem) 
+      .def("norm", &sMDouble::norm)
+      .def("rows", &sMDouble::get_rows)
+      .def("cols", &sMDouble::get_cols)
+      .def("transpose", &sMDouble::transpose)
+      .def(self += self)
+      .def(self *= int())
+      .def(self * int())
+      .def(self *= float())
+      .def(self * float())
+      .def(self + self)
+      .def(self * self)
+      .def("show", &sMDouble::print) // print() is a reserved syntax in python
+      .def("save", &sMDouble::save)
+      .def("load", &sMDouble::load);
+
   typedef denseFactorizationFactory<dMDouble> dFFactory;
   class_<dFFactory>("denseDecomposition")
-    .def(init< >())
-    .def(init<dMDouble&>())
-    .def("reset", &dFFactory::reset)
-    .def("BDCSVD", &dFFactory::BDCSVD)
-    .def("HouseholderQR", &dFFactory::HouseholderQR)
-	.def("PartialPivLU", &dFFactory::PartialPivLU)
-    .def("getU", &dFFactory::getU)
-    .def("getSingularValues", &dFFactory::getSingularValues)
-    .def("getV", &dFFactory::getV)
-    .def("getQ", &dFFactory::getQ)
-  ;
+      .def(init<>())
+      .def(init<dMDouble &>())
+      .def("reset", &dFFactory::reset)
+      .def("BDCSVD", &dFFactory::BDCSVD)
+      .def("HouseholderQR", &dFFactory::HouseholderQR)
+      .def("PartialPivLU", &dFFactory::PartialPivLU)
+      .def("getU", &dFFactory::getU)
+      .def("getSingularValues", &dFFactory::getSingularValues)
+      .def("getV", &dFFactory::getV)
+      .def("getQ", &dFFactory::getQ);
 }
