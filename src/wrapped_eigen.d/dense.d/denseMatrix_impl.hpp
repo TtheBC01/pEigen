@@ -1,3 +1,5 @@
+#include <wrapped_eigen.d/sparse.d/sparseMatrix.hpp>
+
 template <class scalar>
 denseMatrix<scalar>::denseMatrix()
 : rows_(0),
@@ -57,26 +59,6 @@ void denseMatrix<scalar>::load(std::string fname)
   boost::archive::text_iarchive ia(ifs);
   ia >> *this;
   ifs.close();
-}
-
-template <class scalar>
-int denseMatrix<scalar>::get_rows()
-{
-  int tmp = rows_; 
-  if(is_transpose())
-    tmp = cols_;
-
-  return tmp;
-}
-
-template <class scalar>
-int denseMatrix<scalar>::get_cols()
-{
-  int tmp = cols_;
-  if(is_transpose())
-    tmp = rows_;
-
-  return tmp;
 }
 
 template <class scalar>
@@ -377,6 +359,26 @@ denseMatrix<scalar> denseMatrix<scalar>::operator*(const denseMatrix& other)
   else if (!is_transpose() && other.is_transpose())
     z.noalias() = x*other.getEigenMap().transpose();
 
+  return result;
+}
+
+
+template <class scalar>
+denseMatrix<scalar> denseMatrix<scalar>::operator*(const sparseMatrix<scalar>& other)
+{
+  if (cols_ != other.rows())
+  {
+    std::cerr << "Error: Invalid dimensions in matrix multiply: lhs.rows != rhs.cols" << std::endl;
+    abort();
+  }
+
+  denseMatrix<scalar> result;
+  result.resize(rows_,other.cols());
+  Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > z(result.data(),
+                                                                        result.rows(),
+                                                                        result.cols());
+
+  z.noalias() = this->getEigenMap() * other.getEigenMap();
   return result;
 }
 

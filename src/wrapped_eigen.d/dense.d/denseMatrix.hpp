@@ -12,19 +12,20 @@
 
 #include <Eigen/Core>
 
-class dimensionMismatch: public std::exception 
+template<class scalar> class sparseMatrix;
+
+class dimensionMismatch : public std::exception
 {
-  virtual const char* what() const throw()
+  virtual const char *what() const throw()
   {
     return "Dimension Mismatch. Operation not possible.";
   }
 } dimensionMismatch;
 
-template<class scalar>
+template <class scalar>
 class denseMatrix
 {
 public:
-
   denseMatrix();
 
   denseMatrix(int rows, int cols);
@@ -32,7 +33,7 @@ public:
   denseMatrix(std::vector<scalar> &data, int rows, int cols);
 
   denseMatrix(std::vector<scalar> &data, int rows, int cols, bool trnsps);
- 
+
   void resize(int rows, int cols);
 
   void setRandom(int seed);
@@ -42,53 +43,56 @@ public:
 
   int rows() { return rows_; };
   int rows() const { return rows_; };
-  int get_rows();
+  int get_rows() { return transpose_mat ? cols_ : rows_; }
+  int get_rows() const { return transpose_mat ? cols_ : rows_; }
 
   int cols() { return cols_; };
   int cols() const { return cols_; }
-  int get_cols();
+  int get_cols() { return transpose_mat ? rows_ : cols_; }
+  int get_cols() const { return transpose_mat ? rows_ : cols_; }
 
   denseMatrix get_row(int i);
   denseMatrix get_col(int i);
   denseMatrix get_diagonal(int i);
   denseMatrix get_block(int i, int j, int k, int l);
 
-  void set_row(int i, const denseMatrix& r);
-  void set_col(int i, const denseMatrix& c);
-  void set_diagonal(int i, const denseMatrix& d);
-  void set_block(int i, int j, int k, int l, const denseMatrix& b);
+  void set_row(int i, const denseMatrix &r);
+  void set_col(int i, const denseMatrix &c);
+  void set_diagonal(int i, const denseMatrix &d);
+  void set_block(int i, int j, int k, int l, const denseMatrix &b);
 
   bool is_transpose() { return transpose_mat; }
-  bool is_transpose() const { return transpose_mat; } 
+  bool is_transpose() const { return transpose_mat; }
 
-  std::vector<scalar>& container() { return data_; }
-  std::vector<scalar>  container() const { return data_; }
+  std::vector<scalar> &container() { return data_; }
+  std::vector<scalar> container() const { return data_; }
 
-  Eigen::Map< Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > getEigenMap(); 
-  Eigen::Map< const Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> > getEigenMap() const; 
+  Eigen::Map<Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic>> getEigenMap();
+  Eigen::Map<const Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic>> getEigenMap() const;
 
-  scalar* data() { return data_.data(); }
-  const scalar* data() const { return data_.data(); }
- 
+  scalar *data() { return data_.data(); }
+  const scalar *data() const { return data_.data(); }
+
   scalar &operator[](int i) { return data_[i]; }
   scalar &operator[](int i) const { return data_[i]; }
-  scalar &operator()(int row, int col) { return data_[row + col*rows_]; }
+  scalar &operator()(int row, int col) { return data_[row + col * rows_]; }
 
-  denseMatrix& operator=(const  denseMatrix& other);
-  denseMatrix& operator+=(const denseMatrix& other);
-  denseMatrix& operator-=(const denseMatrix& other);
-  denseMatrix& operator*=(const double a);
-  denseMatrix  operator*(const double a);
-  denseMatrix  operator+(const denseMatrix& other);
-  denseMatrix  operator-(const denseMatrix& other);
-  denseMatrix  operator*(const denseMatrix& other);
+  denseMatrix &operator=(const denseMatrix &other);
+  denseMatrix &operator+=(const denseMatrix &other);
+  denseMatrix &operator-=(const denseMatrix &other);
+  denseMatrix &operator*=(const double a);
+  denseMatrix operator*(const double a);
+  denseMatrix operator+(const denseMatrix &other);
+  denseMatrix operator-(const denseMatrix &other);
+  denseMatrix operator*(const denseMatrix &other);
+  denseMatrix operator*(const sparseMatrix<scalar> &other);
 
   denseMatrix transpose();
 
   /// extra member functions to fascilitation python wrapping
-  void assign(const denseMatrix& other);
+  void assign(const denseMatrix &other);
   void setElem(scalar elem, int row, int col);
-  scalar getElem(int row, int col) { return data_[row + col*rows_]; }
+  scalar getElem(int row, int col) { return data_[row + col * rows_]; }
 
   scalar norm();
 
@@ -99,7 +103,6 @@ public:
   void print();
 
 private:
-
   friend class boost::serialization::access;
 
   template <typename Archive>
@@ -114,14 +117,13 @@ private:
   /// size of matrix
   int cols_;
   int rows_;
-  
+
   // track if matrix is transposed
   bool transpose_mat;
   void set_transpose() { transpose_mat = true; }
 
   /// container class to hold data for eigen map
-  std::vector<scalar> data_; 
-
+  std::vector<scalar> data_;
 };
 
 #include "denseMatrix_impl.hpp"

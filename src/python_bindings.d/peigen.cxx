@@ -44,6 +44,8 @@ BOOST_PYTHON_MODULE(libpeigen)
       .def(vector_indexing_suite<std::vector<float>>());
 
   typedef denseMatrix<double> dMDouble;
+  typedef sparseMatrix<double> sMDouble;
+
   class_<dMDouble>("denseMatrixDouble")
       .def(init<>())
       .def(init<int, int>())
@@ -64,10 +66,11 @@ BOOST_PYTHON_MODULE(libpeigen)
       .def(self + self)
       .def(self - self)
       .def(self * self)
+      .def(self * sMDouble())
       .def("show", &dMDouble::print) // print() is a reserved syntax in python
-      .def("rows", &dMDouble::get_rows)
+      .def("rows", static_cast<int (dMDouble::*)()>(&dMDouble::get_rows))
+      .def("cols", static_cast<int (dMDouble::*)()>(&dMDouble::get_cols))
       .def("row", &dMDouble::get_row)
-      .def("cols", &dMDouble::get_cols)
       .def("col", &dMDouble::get_col)
       .def("diagonal", &dMDouble::get_diagonal)
       .def("block", &dMDouble::get_block)
@@ -78,7 +81,6 @@ BOOST_PYTHON_MODULE(libpeigen)
       .def("save", &dMDouble::save)
       .def("load", &dMDouble::load);
 
-  typedef sparseMatrix<double> sMDouble;
   class_<sMDouble>("sparseMatrixDouble")
       .def(init<>())
       .def(init<int, int>())
@@ -89,17 +91,22 @@ BOOST_PYTHON_MODULE(libpeigen)
       .def("assign", &sMDouble::assign)   // operator= not accessible in python
       .def("setElem", &sMDouble::setElem) 
       .def("norm", &sMDouble::norm)
-      .def("rows", &sMDouble::get_rows)
-      .def("cols", &sMDouble::get_cols)
+      .def("nnz", static_cast<int (sMDouble::*)()>(&sMDouble::nnz))
+      .def("rows", static_cast<int (sMDouble::*)()>(&sMDouble::get_rows))
+      .def("cols", static_cast<int (sMDouble::*)()>(&sMDouble::get_cols))
       .def("col", &sMDouble::get_col)
       .def("transpose", &sMDouble::transpose)
       .def(self += self)
+      .def(self -= self)
       .def(self *= int())
       .def(self * int())
       .def(self *= float())
       .def(self * float())
       .def(self + self)
+      .def(self - self)
+      .def(self + dMDouble())
       .def(self * self)
+      .def(self * dMDouble())
       .def("show", &sMDouble::print) // print() is a reserved syntax in python
       .def("show_block", &sMDouble::print_block)
       .def("save", &sMDouble::save)
