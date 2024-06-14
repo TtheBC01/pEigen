@@ -76,8 +76,8 @@ myDiagonal = denseMat.diagonal(1) # returns the diagonal of a (potentially recta
 
 ### Sparse Matrices
 
-Just like with dense matrices, you can create a sparse matrix by pre-specifying the number of rows anc columns. Sparse matrices are stored
-in compressed sparse column format. 
+Just like with dense matrices, you can create a sparse matrix by pre-specifying the number of rows and columns. Sparse matrices are stored
+in [compressed sparse column](https://docs.nvidia.com/nvpl/_static/sparse/storage_format/sparse_matrix.html#compressed-sparse-column-csc) (CSC) format. 
 
 ```python
 import libpeigen as peigen
