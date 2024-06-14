@@ -149,29 +149,19 @@ template <class scalar>
 sparseMatrix<scalar> &sparseMatrix<scalar>::operator+=(const sparseMatrix &other)
 {
   if (get_rows() != other.get_rows() || get_cols() != other.get_cols())
-  {
     throw dimensionMismatch;
-  }
 
   Eigen::SparseMatrix<scalar> result(get_rows(), get_rows());
 
   if (is_transpose())
-  {
     result = Eigen::SparseMatrix<scalar>(this->getEigenMap().transpose());
-  }
   else
-  {
     result = this->getEigenMap();
-  }
 
   if (other.is_transpose())
-  {
     result += Eigen::SparseMatrix<scalar>(other.getEigenMap().transpose());
-  }
   else
-  {
     result += other.getEigenMap();
-  }
 
   clear();
 
@@ -186,29 +176,19 @@ template <class scalar>
 sparseMatrix<scalar> &sparseMatrix<scalar>::operator-=(const sparseMatrix &other)
 {
   if (get_rows() != other.get_rows() || get_cols() != other.get_cols())
-  {
     throw dimensionMismatch;
-  }
 
   Eigen::SparseMatrix<scalar> result(get_rows(), get_rows());
 
   if (is_transpose())
-  {
     result = Eigen::SparseMatrix<scalar>(this->getEigenMap().transpose());
-  }
   else
-  {
     result = this->getEigenMap();
-  }
 
   if (other.is_transpose())
-  {
     result -= Eigen::SparseMatrix<scalar>(other.getEigenMap().transpose());
-  }
   else
-  {
     result -= other.getEigenMap();
-  }
 
   clear();
 
@@ -375,11 +355,12 @@ void sparseMatrix<scalar>::setElem(scalar elem, int row, int col)
           return;
         }
         else if (*itInner > row)
+        { // if it hasn't been set already, we insert it
+          inner_.insert(itInner, row);
+          data_.insert(itData, elem);
           break;
+        }
     }
-
-    inner_.insert(itInner, row);
-    data_.insert(itData, elem);
   }
   else
   {
@@ -402,14 +383,12 @@ size_t sparseMatrix<scalar>::size()
 template <class scalar>
 void sparseMatrix<scalar>::print()
 {
-  Eigen::Map<Eigen::SparseMatrix<scalar>> x(rows_, cols_, nnz_, outer_.data(), inner_.data(), data_.data());
-
   if (!is_transpose())
     std::cout << "data =\n"
-              << x << std::endl;
+              << this->getEigenMap() << std::endl;
   else
     std::cout << "data = \n"
-              << x.transpose() << std::endl;
+              << this->getEigenMap().transpose() << std::endl;
 }
 
 template <class scalar>
@@ -426,6 +405,5 @@ void sparseMatrix<scalar>::print_block(int startRow, int startCol, int rows, int
 template <class scalar>
 scalar sparseMatrix<scalar>::norm()
 {
-
   return this->getEigenMap().norm();
 }
