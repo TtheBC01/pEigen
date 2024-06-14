@@ -2,8 +2,8 @@
 
 This project is a simple wrapper for the [Eigen Tux](https://eigen.tuxfamily.org/) library using 
 [Boost.Python](https://github.com/boostorg/python). It exposes dense and sparse matrix objects as
-well as matrix decomposition methods. 
-
+well as matrix decomposition methods. Matrix compuatation (particularly factorization) using Eigen
+are usually *much* faster that other packages like numpy or scipy.
 
 For information about building this project locally for contributing, see the [developer docs](/DEV.md).
 
