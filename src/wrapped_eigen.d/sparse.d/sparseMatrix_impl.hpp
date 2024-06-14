@@ -97,14 +97,15 @@ sparseMatrix<scalar> sparseMatrix<scalar>::get_col(int col)
 {
 
   int start = outer_[col];
-  int end = outer_[col+1];
+  int end = outer_[col + 1];
   int nnz = end - start;
 
   std::vector<int> newInner(nnz);
   std::vector<scalar> newData(nnz);
-  for(int i = 0; i < nnz; i++) {
-    newInner[i] = inner_[i+start];
-    newData[i] = data_[i+start];
+  for (int i = 0; i < nnz; i++)
+  {
+    newInner[i] = inner_[i + start];
+    newData[i] = data_[i + start];
   }
 
   std::vector<int> newOuter(2);
@@ -122,7 +123,7 @@ Eigen::Map<Eigen::SparseMatrix<scalar>> sparseMatrix<scalar>::getEigenMap()
   Eigen::Map<Eigen::SparseMatrix<scalar>> sm(rows(), cols(), nnz(), outer_.data(), inner_.data(), data_.data());
 
   return sm;
-} 
+}
 
 template <class scalar>
 Eigen::Map<const Eigen::SparseMatrix<scalar>> sparseMatrix<scalar>::getEigenMap() const
@@ -130,7 +131,7 @@ Eigen::Map<const Eigen::SparseMatrix<scalar>> sparseMatrix<scalar>::getEigenMap(
   Eigen::Map<const Eigen::SparseMatrix<scalar>> sm(rows_, cols_, nnz_, outer_.data(), inner_.data(), data_.data());
 
   return sm;
-} 
+}
 
 template <class scalar>
 sparseMatrix<scalar> &sparseMatrix<scalar>::operator=(const sparseMatrix &other)
@@ -152,15 +153,31 @@ sparseMatrix<scalar> &sparseMatrix<scalar>::operator+=(const sparseMatrix &other
     throw dimensionMismatch;
   }
 
-  Eigen::SparseMatrix<scalar> result(rows_, cols_);
+  Eigen::SparseMatrix<scalar> result(get_rows(), get_rows());
 
-  result = this->getEigenMap() + other.getEigenMap();
+  if (is_transpose())
+  {
+    result = Eigen::SparseMatrix<scalar>(this->getEigenMap().transpose());
+  }
+  else
+  {
+    result = this->getEigenMap();
+  }
+
+  if (other.is_transpose())
+  {
+    result += Eigen::SparseMatrix<scalar>(other.getEigenMap().transpose());
+  }
+  else
+  {
+    result += other.getEigenMap();
+  }
 
   clear();
 
   for (int k = 0; k < result.outerSize(); ++k)
     for (typename Eigen::SparseMatrix<scalar>::InnerIterator it(result, k); it; ++it)
-      setElem(it.value(), it.row(), it.col());
+      setElem(it.value(), (is_transpose() ? it.col() : it.row()), (is_transpose() ? it.row() : it.col()));
 
   return *this;
 }
@@ -173,22 +190,38 @@ sparseMatrix<scalar> &sparseMatrix<scalar>::operator-=(const sparseMatrix &other
     throw dimensionMismatch;
   }
 
-  Eigen::SparseMatrix<scalar> result(rows_, cols_);
+  Eigen::SparseMatrix<scalar> result(get_rows(), get_rows());
 
-  result = this->getEigenMap() - other.getEigenMap();
+  if (is_transpose())
+  {
+    result = Eigen::SparseMatrix<scalar>(this->getEigenMap().transpose());
+  }
+  else
+  {
+    result = this->getEigenMap();
+  }
+
+  if (other.is_transpose())
+  {
+    result -= Eigen::SparseMatrix<scalar>(other.getEigenMap().transpose());
+  }
+  else
+  {
+    result -= other.getEigenMap();
+  }
 
   clear();
 
   for (int k = 0; k < result.outerSize(); ++k)
     for (typename Eigen::SparseMatrix<scalar>::InnerIterator it(result, k); it; ++it)
-      setElem(it.value(), it.row(), it.col());
+      setElem(it.value(), (is_transpose() ? it.col() : it.row()), (is_transpose() ? it.row() : it.col()));
 
   return *this;
 }
 
 template <class scalar>
 sparseMatrix<scalar> &sparseMatrix<scalar>::operator*=(const double a)
-{ 
+{
   this->getEigenMap() *= a;
   return *this;
 }
@@ -229,10 +262,17 @@ sparseMatrix<scalar> sparseMatrix<scalar>::operator*(const sparseMatrix &other)
     throw dimensionMismatch;
   }
 
-  Eigen::SparseMatrix<scalar> result(rows_, other.cols());
-  sparseMatrix<scalar> container(rows_, other.cols());
+  Eigen::SparseMatrix<scalar> result(get_rows(), other.get_cols());
+  sparseMatrix<scalar> container(get_rows(), other.get_cols());
 
-  result = (this->getEigenMap() * other.getEigenMap()).pruned(); // prune explicit zeros from the result
+  if (!is_transpose() && !other.is_transpose())                    // this * other
+    result = (this->getEigenMap() * other.getEigenMap()).pruned(); // prune explicit zeros from the result
+  else if (!is_transpose() && other.is_transpose())                // this * other^T
+    result = (this->getEigenMap() * other.getEigenMap().transpose()).pruned();
+  else if (is_transpose() && other.is_transpose()) // this^T * other^T
+    result = (this->getEigenMap().transpose() * other.getEigenMap().transpose()).pruned();
+  else if (is_transpose() && !other.is_transpose()) // this^T * other
+    result = (this->getEigenMap().transpose() * other.getEigenMap()).pruned();
 
   for (int k = 0; k < result.outerSize(); ++k)
     for (typename Eigen::SparseMatrix<scalar>::InnerIterator it(result, k); it; ++it)
@@ -242,21 +282,29 @@ sparseMatrix<scalar> sparseMatrix<scalar>::operator*(const sparseMatrix &other)
 }
 
 template <class scalar>
-denseMatrix<scalar> sparseMatrix<scalar>::operator*(const denseMatrix<scalar>& other)
+denseMatrix<scalar> sparseMatrix<scalar>::operator*(const denseMatrix<scalar> &other)
 {
   if (get_cols() != other.get_rows())
   {
     throw dimensionMismatch;
   }
-  denseMatrix<scalar> result;
-  result.resize(rows_,other.cols());
+  denseMatrix<scalar> result(get_rows(), other.get_cols());
+
+  if (!is_transpose() && !other.is_transpose()) // this * other
+    result.getEigenMap() = this->getEigenMap() * other.getEigenMap();
+  else if (!is_transpose() && other.is_transpose()) // this * other^T
+    result.getEigenMap() = this->getEigenMap() * other.getEigenMap().transpose();
+  else if (is_transpose() && other.is_transpose()) // this^T * other^T
+    result.getEigenMap() = this->getEigenMap().transpose() * other.getEigenMap().transpose();
+  else if (is_transpose() && !other.is_transpose()) // this^T * other
+    result.getEigenMap() = this->getEigenMap().transpose() * other.getEigenMap();
 
   result.getEigenMap() = this->getEigenMap() * other.getEigenMap();
   return result;
 }
 
 template <class scalar>
-denseMatrix<scalar> sparseMatrix<scalar>::operator+(const denseMatrix<scalar>& other)
+denseMatrix<scalar> sparseMatrix<scalar>::operator+(const denseMatrix<scalar> &other)
 {
   if ((get_cols() != other.get_cols()) && (get_rows() != other.get_rows()))
   {
@@ -265,8 +313,16 @@ denseMatrix<scalar> sparseMatrix<scalar>::operator+(const denseMatrix<scalar>& o
 
   denseMatrix<scalar> result(get_rows(), get_cols());
 
-  result.getEigenMap() = other.getEigenMap();
-  result.getEigenMap() += this->getEigenMap();
+  if (other.is_transpose())
+    result.getEigenMap() = other.getEigenMap().transpose();
+  else
+    result.getEigenMap() = other.getEigenMap();
+
+  if (is_transpose())
+    result.getEigenMap() += this->getEigenMap().transpose();
+  else
+    result.getEigenMap() += this->getEigenMap();
+
   return result;
 }
 
@@ -298,44 +354,43 @@ void sparseMatrix<scalar>::setElem(scalar elem, int row, int col)
 {
   if ((row >= rows()) || (row < 0) || (col >= cols()) || (col < 0))
   {
-    std::cerr << "ERROR: requested element is outside of range" << std::endl;
+    throw invalidRange;
+  }
+
+  // get nnz up to row before insertion row
+  if (nnz_ > 0)
+  {
+    int nnz1 = outer_[col];     // number of slots to skip
+    int nnz2 = outer_[col + 1]; // number fo nnzs in col being changed
+    std::vector<int>::iterator itInner = inner_.begin() + nnz1;
+    std::vector<int>::iterator itInnerStop = inner_.begin() + nnz2;
+    typename std::vector<scalar>::iterator itData = data_.begin() + nnz1;
+    if (nnz1 != nnz2) // then theres nothing in the column yet
+    {
+      // find where to insert in the row indices
+      for (; itInner != itInnerStop; itInner++, itData++)
+        if (*itInner == row)
+        { // if the element is set already, we're going to overwrite it
+          *itData = elem;
+          return;
+        }
+        else if (*itInner > row)
+          break;
+    }
+
+    inner_.insert(itInner, row);
+    data_.insert(itData, elem);
   }
   else
   {
-
-    // get nnz up to row before insertion row
-    if (nnz_ > 0)
-    {
-      int nnz1 = outer_[col];     // number of slots to skip
-      int nnz2 = outer_[col + 1]; // number fo nnzs in col being changed
-      std::vector<int>::iterator itInner = inner_.begin() + nnz1;
-      std::vector<int>::iterator itInnerStop = inner_.begin() + nnz2;
-      typename std::vector<scalar>::iterator itData = data_.begin() + nnz1;
-      if (nnz1 != nnz2) // then theres nothing in the column yet
-      {
-        // find where to insert in the row indices
-        for (; itInner != itInnerStop; itInner++, itData++)
-          if (*itInner == row) {// if the element is set already, we're going to overwrite it
-            *itData = elem;
-            return;
-          } else if (*itInner > row)
-            break;
-      }
-
-      inner_.insert(itInner, row);
-      data_.insert(itData, elem);
-    }
-    else
-    {
-      data_.push_back(elem);
-      inner_.push_back(row);
-    }
-    // update nnz counter
-    for (std::vector<int>::iterator it = outer_.begin() + col + 1; it != outer_.end(); it++)
-      (*it)++;
-
-    nnz_++;
+    data_.push_back(elem);
+    inner_.push_back(row);
   }
+  // update nnz counter
+  for (std::vector<int>::iterator it = outer_.begin() + col + 1; it != outer_.end(); it++)
+    (*it)++;
+
+  nnz_++;
 }
 
 template <class scalar>

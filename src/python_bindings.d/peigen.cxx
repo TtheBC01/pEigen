@@ -68,7 +68,7 @@ BOOST_PYTHON_MODULE(libpeigen)
       .def(self * self)
       .def(self * sMDouble())
       .def("show", &dMDouble::print) // print() is a reserved syntax in python
-      .def("rows", static_cast<int (dMDouble::*)()>(&dMDouble::get_rows))
+      .def("rows", static_cast<int (dMDouble::*)()>(&dMDouble::get_rows)) // we do this do disambiguate between const and non-const implementations
       .def("cols", static_cast<int (dMDouble::*)()>(&dMDouble::get_cols))
       .def("row", &dMDouble::get_row)
       .def("col", &dMDouble::get_col)
@@ -113,7 +113,7 @@ BOOST_PYTHON_MODULE(libpeigen)
       .def("load", &sMDouble::load);
 
   typedef denseFactorizationFactory<dMDouble> dFFactory;
-  class_<dFFactory>("denseDecomposition")
+  class_<dFFactory>("denseFactorization")
       .def(init<>())
       .def(init<dMDouble &>())
       .def("reset", &dFFactory::reset)

@@ -22,6 +22,14 @@ class dimensionMismatch : public std::exception
   }
 } dimensionMismatch;
 
+class invalidRange : public std::exception
+{
+  virtual const char *what() const throw()
+  {
+    return "ERROR: Requested element is out of range.";
+  }
+} invalidRange;
+
 template <class scalar>
 class denseMatrix
 {
@@ -86,13 +94,15 @@ public:
   denseMatrix operator-(const denseMatrix &other);
   denseMatrix operator*(const denseMatrix &other);
   denseMatrix operator*(const sparseMatrix<scalar> &other);
+  denseMatrix operator+(const sparseMatrix<scalar> &other);
+  denseMatrix operator-(const sparseMatrix<scalar> &other);
 
   denseMatrix transpose();
 
   /// extra member functions to fascilitation python wrapping
   void assign(const denseMatrix &other);
   void setElem(scalar elem, int row, int col);
-  scalar getElem(int row, int col) { return data_[row + col * rows_]; }
+  scalar getElem(int row, int col);
 
   scalar norm();
 
