@@ -18,8 +18,8 @@ You can create dense matrices by specifying the number of rows and columns. Elem
 ```python
 import libpeigen as peigen
 
-rows = 2
-cols = 3
+rows = 20
+cols = 30
 denseMat = peigen.denseMatrixDouble(rows, cols)
 
 # set the element on the second row in the first column to 4
@@ -39,6 +39,36 @@ denseMat.transpose().show()
 
 # scalar multiplication
 denseMat *= 3.14
+
+# matrix multiplication
+newDenseMat = peigen.denseMatrixDouble(rows,cols)
+newDenseMat.assign(denseMat) # deep copy into new dense matrix object
+result = denseMat * newDenseMat.transpose() # result is a new dense matrix object
+
+# matrix addition
+result = denseMat + newDenseMat
+# or
+denseMat += newDenseMat
+
+# matrix subtraction
+result = denseMat - newDenseMat
+# or
+denseMat -= newDenseMat
+```
+
+You can also access arbitrary blocks of a dense matrix.
+
+```python
+startingRow = 5
+startingCol = 6
+numRows = 4
+numCols = 3
+
+# make a new matrix from a block of an existing matrix
+myBlock = denseMat.block(startingRow, startingCol, numRows, numCols)
+
+# or grab the (off)diagonals from a matrix
+myDiagonal = denseMat.diagonal(1) # returns the diagonal of a (potentially rectangular) offset by 1 in this case
 ```
 
 ## Factorizations

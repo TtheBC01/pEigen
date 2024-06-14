@@ -7,6 +7,12 @@ class SparseMatrixTest(unittest.TestCase):
         self.rows = 2000
         self.cols = 3000
         self.sparse_matrix = peigen.sparseMatrixDouble(self.rows, self.cols)
+        self.sparse_matrix.setElem(5.0,345,2854)
+
+    def test_assignment(self):
+        lhs = peigen.sparseMatrixDouble()
+        lhs.assign(self.sparse_matrix)
+        self.assertEqual(lhs.norm(), self.sparse_matrix.norm())
         
     def test_rows(self):
         self.assertEqual(self.sparse_matrix.rows(), self.rows)
@@ -19,36 +25,52 @@ class SparseMatrixTest(unittest.TestCase):
         norm_greater_than_0 = (self.sparse_matrix.norm() > 0)
         self.assertEqual(norm_greater_than_0, True)
         
-    #def test_integer_multiplication(self):
-    #    elem = self.sparse_matrix.getElem(1,1)
-    #    self.sparse_matrix *= int(2)
-    #    self.assertEqual(self.sparse_matrix.getElem(1,1), int(2)*elem)
+    def test_integer_multiplication(self):
+        self.sparse_matrix.setElem(30,2,0)
+        sm = peigen.sparseMatrixDouble()
+        sm.assign(self.sparse_matrix)
+        sm *= int(2)
+        self.assertEqual(self.sparse_matrix.norm()*int(2), sm.norm())
         
-    #def test_float_multiplication(self):
-    #    elem = self.sparse_matrix.getElem(1,1)
-    #    self.sparse_matrix *= float(2.0)
-    #    self.assertEqual(self.sparse_matrix.getElem(1,1), float(2.0)*elem)
+    def test_float_multiplication(self):
+        self.sparse_matrix.setElem(30,2,0)
+        sm = peigen.sparseMatrixDouble()
+        sm.assign(self.sparse_matrix)
+        sm *= float(2)
+        self.assertEqual(self.sparse_matrix.norm()*float(2), sm.norm())
         
-    #def test_plus_equals(self):
-    #    rhs = peigen.denseMatrixDouble(self.rows, self.cols)
-    #    rhs.setRandom(3)
-    #    result = self.dense_matrix.getElem(1,1) + rhs.getElem(1,1)
-    #    self.dense_matrix += rhs
-    #    self.assertEqual(self.dense_matrix.getElem(1,1), result)
+    def test_plus_equals(self):
+        rhs = peigen.sparseMatrixDouble(self.rows, self.cols)
+        rhs.assign(self.sparse_matrix)
+        self.sparse_matrix += rhs
+        self.assertEqual(self.sparse_matrix.norm(), int(2)*rhs.norm())
         
-    #def test_assignment(self):
-    #    lhs = peigen.denseMatrixDouble()
-    #    lhs.assign(self.dense_matrix)
-    #    self.assertEqual(lhs.norm(), self.dense_matrix.norm())
-        
-    #def test_matrix_multiplication(self):
-    #    rhs = peigen.denseMatrixDouble(self.rows, self.cols)
-    #    rhs.setRandom(3)
-    #    result = self.dense_matrix.transpose()*rhs
-    #    norm_greater_than_previous = (result.norm() > self.dense_matrix.norm())
-    #    self.assertEqual(norm_greater_than_previous, True)
-    #    self.assertEqual(result.rows(), self.dense_matrix.cols())
-    #    self.assertEqual(result.cols(), rhs.cols())
+    def test_sparse_sparse_matrix_multiplication(self):
+        rhs = peigen.sparseMatrixDouble(self.rows, self.cols)
+        rhs.assign(self.sparse_matrix)
+        result = self.sparse_matrix.transpose()*rhs
+        norm_greater_than_previous = (result.norm() > self.sparse_matrix.norm())
+        self.assertEqual(norm_greater_than_previous, True)
+        self.assertEqual(result.rows(), self.sparse_matrix.cols())
+        self.assertEqual(result.cols(), rhs.cols())
+
+    def test_sparse_dense_matrix_multiplication(self):
+        rhs = peigen.denseMatrixDouble(self.rows, self.cols)
+        rhs.setRandom(1)
+        result = self.sparse_matrix.transpose()*rhs
+        norm_greater_than_previous = (result.norm() > self.sparse_matrix.norm())
+        self.assertEqual(norm_greater_than_previous, True)
+        self.assertEqual(result.rows(), self.sparse_matrix.cols())
+        self.assertEqual(result.cols(), rhs.cols())
+
+    def test_dense_sparse_matrix_multiplication(self):
+        rhs = peigen.denseMatrixDouble(self.rows, self.cols)
+        rhs.setRandom(1)
+        result = rhs.transpose()*self.sparse_matrix
+        norm_greater_than_previous = (result.norm() > self.sparse_matrix.norm())
+        self.assertEqual(norm_greater_than_previous, True)
+        self.assertEqual(result.rows(), self.sparse_matrix.cols())
+        self.assertEqual(result.cols(), rhs.cols())
         
 if __name__ == '__main__':
     unittest.main()
