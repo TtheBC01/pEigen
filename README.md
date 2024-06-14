@@ -74,6 +74,15 @@ myBlock = denseMat.block(startingRow, startingCol, numRows, numCols)
 myDiagonal = denseMat.diagonal(1) # returns the diagonal of a (potentially rectangular) offset by 1 in this case
 ```
 
+You can save a dense matrix to a file to use later.
+
+```python
+denseMat.save("myMat.mat")
+
+newDenseMat = peigen.denseMatrixDouble()
+newDenseMat.load("myMat.mat")
+```
+
 ### Sparse Matrices
 
 Just like with dense matrices, you can create a sparse matrix by pre-specifying the number of rows and columns. Sparse matrices are stored
@@ -108,6 +117,15 @@ denseMat = peigen.denseMatrixDouble(rows, cols)
 denseMat.setRandom(1)
 result = denseMat.transpose() * sparseMat
 result = sparseMat.transpose() * denseMat
+```
+
+You can also save a sparse matrix to a file to use later.
+
+```python
+sparseMat.save("myMat.mat")
+
+newSparseMat = peigen.denseMatrixDouble()
+newSparseMat.load("myMat.mat")
 ```
 
 ## Factorizations
