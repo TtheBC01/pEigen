@@ -21,12 +21,7 @@ void denseFactorizationFactory<serialType>::BDCSVD()
   {
     std::cerr << "Nothing to decompose..." << std::endl;
   } else {
-
-    Eigen::Map< Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> > y(dense_matrix_->data(),
-                                                                          dense_matrix_->rows(),
-                                                                          dense_matrix_->cols());
-
-    Eigen::BDCSVD<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic> > svd(y, Eigen::ComputeThinU | Eigen::ComputeThinV);
+    Eigen::BDCSVD<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic> > svd(dense_matrix_->getEigenMap(), Eigen::ComputeThinU | Eigen::ComputeThinV);
 
     U.resize(svd.matrixU().rows(),svd.matrixU().cols());
     S.resize(svd.singularValues().rows(),svd.singularValues().rows());
@@ -55,13 +50,8 @@ void denseFactorizationFactory<serialType>::HouseholderQR()
   {
     std::cerr << "Nothing to decompose..." << std::endl;
   } else {
-
-    Eigen::Map< Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> > y(dense_matrix_->data(),
-                                                                          dense_matrix_->rows(),
-                                                                          dense_matrix_->cols());
-
-    Eigen::HouseholderQR<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic> > qr(y.rows(), y.cols());
-    qr.compute(y);
+    Eigen::HouseholderQR<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic> > qr(dense_matrix_->rows(), dense_matrix_->cols());
+    qr.compute(dense_matrix_->getEigenMap());
 
     Q.resize(qr.householderQ().rows(),qr.householderQ().cols());
     Eigen::Map< Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> > Qbuf(Q.data(),
@@ -83,11 +73,7 @@ void denseFactorizationFactory<serialType>::PartialPivLU()
 	if (dense_matrix_->rows() != dense_matrix_->cols()) {
 		std::cerr << "ERROR: LU Decomposition is only for square matrices" << std::endl;
 	} else {
-      Eigen::Map< Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> > y(dense_matrix_->data(),
-                                                                            dense_matrix_->rows(),
-                                                                            dense_matrix_->cols());
-
-      Eigen::PartialPivLU<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic> > PPLU(y);
+      Eigen::PartialPivLU<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic> > PPLU(dense_matrix_->getEigenMap());
 
 /*       Q.resize(qr.householderQ().rows(),qr.householderQ().cols());
       Eigen::Map< Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> > Qbuf(Q.data(),

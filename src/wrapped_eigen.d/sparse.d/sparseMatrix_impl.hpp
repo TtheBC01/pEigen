@@ -338,29 +338,27 @@ void sparseMatrix<scalar>::setElem(scalar elem, int row, int col)
   }
 
   // get nnz up to row before insertion row
-  if (nnz_ > 0)
+  if (nnz() > 0)
   {
     int nnz1 = outer_[col];     // number of slots to skip
     int nnz2 = outer_[col + 1]; // number fo nnzs in col being changed
     std::vector<int>::iterator itInner = inner_.begin() + nnz1;
     std::vector<int>::iterator itInnerStop = inner_.begin() + nnz2;
     typename std::vector<scalar>::iterator itData = data_.begin() + nnz1;
-    if (nnz1 != nnz2) // then theres nothing in the column yet
-    {
-      // find where to insert in the row indices
-      for (; itInner != itInnerStop; itInner++, itData++)
-        if (*itInner == row)
-        { // if the element is set already, we're going to overwrite it
-          *itData = elem;
-          return;
-        }
-        else if (*itInner > row)
-        { // if it hasn't been set already, we insert it
-          inner_.insert(itInner, row);
-          data_.insert(itData, elem);
-          break;
-        }
-    }
+    // find where to insert in the row indices
+    for (; itInner != itInnerStop; itInner++, itData++)
+      if (*itInner == row)
+      { // if the element is set already, we're going to overwrite it
+        *itData = elem;
+        return;
+      }
+      else if (*itInner > row)
+      { // if it hasn't been set already, we insert it
+        break;
+      }
+
+    inner_.insert(itInner, row);
+    data_.insert(itData, elem);
   }
   else
   {
@@ -372,6 +370,33 @@ void sparseMatrix<scalar>::setElem(scalar elem, int row, int col)
     (*it)++;
 
   nnz_++;
+}
+
+template <class scalar>
+scalar sparseMatrix<scalar>::getElem(int row, int col)
+{
+  if ((row >= rows()) || (row < 0) || (col >= cols()) || (col < 0))
+  {
+    throw invalidRange;
+  }
+
+  // get nnz up to row before insertion row
+  if (nnz() > 0)
+  {
+    int nnz1 = outer_[col];     // number of slots to skip
+    int nnz2 = outer_[col + 1]; // number fo nnzs in col being changed
+    std::vector<int>::iterator itInner = inner_.begin() + nnz1;
+    std::vector<int>::iterator itInnerStop = inner_.begin() + nnz2;
+    typename std::vector<scalar>::iterator itData = data_.begin() + nnz1;
+    // find where to insert in the row indices
+    for (; itInner != itInnerStop; itInner++, itData++)
+      if (*itInner == row) // if the row is in inner_ return it
+        return *itData;
+      else if (*itInner > row) // if we've already passed the row, we can return 0
+        break;
+  }
+
+  return scalar(0);
 }
 
 template <class scalar>

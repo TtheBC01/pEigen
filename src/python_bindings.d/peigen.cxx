@@ -90,6 +90,7 @@ BOOST_PYTHON_MODULE(libpeigen)
       .def("reserve", &sMDouble::reserve)
       .def("assign", &sMDouble::assign)   // operator= not accessible in python
       .def("setElem", &sMDouble::setElem) 
+      .def("getElem", &sMDouble::getElem)
       .def("norm", &sMDouble::norm)
       .def("nnz", static_cast<int (sMDouble::*)()>(&sMDouble::nnz))
       .def("rows", static_cast<int (sMDouble::*)()>(&sMDouble::get_rows))

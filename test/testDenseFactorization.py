@@ -10,7 +10,7 @@ class DenseFactorizationTest(unittest.TestCase):
         self.dense_matrix = peigen.denseMatrixDouble(self.rows, self.cols)
         self.dense_matrix.setRandom(1)
         
-        self.factorizer = peigen.denseDecomposition(self.dense_matrix)
+        self.factorizer = peigen.denseFactorization(self.dense_matrix)
         
     def test_thin_svd(self):
         self.factorizer.BDCSVD()

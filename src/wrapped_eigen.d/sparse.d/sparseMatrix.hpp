@@ -97,6 +97,7 @@ public:
   /// extra member functions to facilitate python wrapping
   void assign(const sparseMatrix &other);
   void setElem(scalar elem, int row, int col);
+  scalar getElem(int row, int col);
 
   size_t size();
 
