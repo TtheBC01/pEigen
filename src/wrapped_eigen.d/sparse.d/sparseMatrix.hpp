@@ -118,6 +118,7 @@ private:
     ar & data_;
     ar & inner_;
     ar & outer_;
+    ar & transpose_mat;
   }
 
   /// size of matrix

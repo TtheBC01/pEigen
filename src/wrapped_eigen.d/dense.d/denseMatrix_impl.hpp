@@ -62,7 +62,6 @@ void denseMatrix<scalar>::load(std::string fname)
 template <class scalar>
 denseMatrix<scalar> denseMatrix<scalar>::get_row(int row)
 {
-
   denseMatrix newrow(1, cols_);
   newrow.getEigenMap() = this->getEigenMap().row(row);
   return newrow;
@@ -71,7 +70,6 @@ denseMatrix<scalar> denseMatrix<scalar>::get_row(int row)
 template <class scalar>
 denseMatrix<scalar> denseMatrix<scalar>::get_col(int col)
 {
-
   denseMatrix column(rows_, 1);
   column.getEigenMap() = this->getEigenMap().col(col);
   return column;
@@ -80,7 +78,6 @@ denseMatrix<scalar> denseMatrix<scalar>::get_col(int col)
 template <class scalar>
 denseMatrix<scalar> denseMatrix<scalar>::get_diagonal(int n)
 {
-
   denseMatrix diag(rows_, 1);
   diag.getEigenMap() = this->getEigenMap().diagonal(n);
   return diag;
@@ -119,14 +116,12 @@ template <class scalar>
 void denseMatrix<scalar>::set_diagonal(int d, const denseMatrix &dmat)
 {
   // first, dmat must be a vector 
-  if ((dmat.cols() != 1) && (dmat.rows() != 1)){
+  if ((dmat.cols() != 1) && (dmat.rows() != 1))
     throw dimensionMismatch;
-  }
   
   // second, the length of the diagonal must equal the length of dmat
-  if ((dmat.cols() != this->getEigenMap().diagonal(d).rows()) && (dmat.rows() != this->getEigenMap().diagonal(d).rows())) {
+  if ((dmat.cols() != this->getEigenMap().diagonal(d).rows()) && (dmat.rows() != this->getEigenMap().diagonal(d).rows()))
     throw dimensionMismatch;
-  }
 
   this->getEigenMap().diagonal(d) = dmat.getEigenMap();
 }
