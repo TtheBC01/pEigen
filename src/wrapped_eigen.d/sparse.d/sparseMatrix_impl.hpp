@@ -211,9 +211,7 @@ template <class scalar>
 sparseMatrix<scalar> sparseMatrix<scalar>::operator+(const sparseMatrix &other)
 {
   if ((get_cols() != other.get_cols()) && (get_rows() != other.get_rows()))
-  {
     throw dimensionMismatch;
-  }
 
   sparseMatrix<scalar> result = other;
   result += *this;
@@ -225,9 +223,7 @@ template <class scalar>
 sparseMatrix<scalar> sparseMatrix<scalar>::operator-(const sparseMatrix &other)
 {
   if ((get_cols() != other.get_cols()) && (get_rows() != other.get_rows()))
-  {
     throw dimensionMismatch;
-  }
 
   sparseMatrix<scalar> result = *this;
   result -= other;
@@ -239,9 +235,7 @@ template <class scalar>
 sparseMatrix<scalar> sparseMatrix<scalar>::operator*(const sparseMatrix &other)
 {
   if (get_cols() != other.get_rows())
-  {
     throw dimensionMismatch;
-  }
 
   Eigen::SparseMatrix<scalar> result(get_rows(), other.get_cols());
   sparseMatrix<scalar> container(get_rows(), other.get_cols());
@@ -266,9 +260,8 @@ template <class scalar>
 denseMatrix<scalar> sparseMatrix<scalar>::operator*(const denseMatrix<scalar> &other)
 {
   if (get_cols() != other.get_rows())
-  {
     throw dimensionMismatch;
-  }
+
   denseMatrix<scalar> result(get_rows(), other.get_cols());
 
   if (!is_transpose() && !other.is_transpose()) // this * other
@@ -287,9 +280,7 @@ template <class scalar>
 denseMatrix<scalar> sparseMatrix<scalar>::operator+(const denseMatrix<scalar> &other)
 {
   if ((get_cols() != other.get_cols()) && (get_rows() != other.get_rows()))
-  {
     throw dimensionMismatch;
-  }
 
   denseMatrix<scalar> result(get_rows(), get_cols());
 
@@ -297,6 +288,27 @@ denseMatrix<scalar> sparseMatrix<scalar>::operator+(const denseMatrix<scalar> &o
     result.getEigenMap() = other.getEigenMap().transpose();
   else
     result.getEigenMap() = other.getEigenMap();
+
+  if (is_transpose())
+    result.getEigenMap() += this->getEigenMap().transpose();
+  else
+    result.getEigenMap() += this->getEigenMap();
+
+  return result;
+}
+
+template <class scalar>
+denseMatrix<scalar> sparseMatrix<scalar>::operator-(const denseMatrix<scalar> &other)
+{
+  if ((get_cols() != other.get_cols()) && (get_rows() != other.get_rows()))
+    throw dimensionMismatch;
+
+  denseMatrix<scalar> result(get_rows(), get_cols());
+
+  if (other.is_transpose())
+    result.getEigenMap() = -1 * other.getEigenMap().transpose();
+  else
+    result.getEigenMap() = -1 * other.getEigenMap();
 
   if (is_transpose())
     result.getEigenMap() += this->getEigenMap().transpose();

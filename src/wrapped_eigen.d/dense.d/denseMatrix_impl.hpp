@@ -255,9 +255,7 @@ template <class scalar>
 denseMatrix<scalar> denseMatrix<scalar>::operator*(const sparseMatrix<scalar> &other)
 {
   if (get_cols() != other.get_rows())
-  {
     throw dimensionMismatch;
-  }
 
   denseMatrix<scalar> result(get_rows(), other.get_cols());
 
@@ -277,9 +275,7 @@ template <class scalar>
 denseMatrix<scalar> denseMatrix<scalar>::operator+(const sparseMatrix<scalar> &other)
 {
   if ((get_cols() != other.get_cols()) && (get_rows() != other.get_rows()))
-  {
     throw dimensionMismatch;
-  }
 
   denseMatrix<scalar> result(get_rows(), get_cols());
 
@@ -299,9 +295,7 @@ template <class scalar>
 denseMatrix<scalar> denseMatrix<scalar>::operator-(const sparseMatrix<scalar> &other)
 {
   if ((get_cols() != other.get_cols()) && (get_rows() != other.get_rows()))
-  {
     throw dimensionMismatch;
-  }
 
   denseMatrix<scalar> result(get_rows(), get_cols());
 

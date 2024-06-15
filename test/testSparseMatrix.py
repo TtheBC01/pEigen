@@ -110,6 +110,20 @@ class SparseMatrixTest(unittest.TestCase):
         self.assertEqual(result_norm_leq_product, True)
         self.assertEqual(result.rows(), self.sparse_matrix.cols())
         self.assertEqual(result.cols(), rhs.cols())
+
+    def test_sparse_dense_addition(self):
+        dm = peigen.denseMatrixDouble(100,100)
+        dm.setRandom(1)
+        sm = peigen.sparseMatrixDouble(100,100,0)
+        result = sm + dm
+        self.assertEqual(result.norm(), dm.norm())
+
+    def test_sparse_dense_subtraction(self):
+        dm = peigen.denseMatrixDouble(100,100)
+        dm.setRandom(1)
+        sm = peigen.sparseMatrixDouble(100,100,0)
+        result = sm - dm
+        self.assertEqual(result.norm(), dm.norm())
         
 if __name__ == '__main__':
     unittest.main()
