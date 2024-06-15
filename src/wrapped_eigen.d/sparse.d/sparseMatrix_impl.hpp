@@ -279,7 +279,6 @@ denseMatrix<scalar> sparseMatrix<scalar>::operator*(const denseMatrix<scalar> &o
   else if (is_transpose() && !other.is_transpose()) // this^T * other
     result.getEigenMap() = this->getEigenMap().transpose() * other.getEigenMap();
 
-  result.getEigenMap() = this->getEigenMap() * other.getEigenMap();
   return result;
 }
 
@@ -333,9 +332,7 @@ template <class scalar>
 void sparseMatrix<scalar>::setElem(scalar elem, int row, int col)
 {
   if ((row >= rows()) || (row < 0) || (col >= cols()) || (col < 0))
-  {
     throw invalidRange;
-  }
 
   // get nnz up to row before insertion row
   if (nnz() > 0)
@@ -376,9 +373,7 @@ template <class scalar>
 scalar sparseMatrix<scalar>::getElem(int row, int col)
 {
   if ((row >= rows()) || (row < 0) || (col >= cols()) || (col < 0))
-  {
     throw invalidRange;
-  }
 
   // get nnz up to row before insertion row
   if (nnz() > 0)
