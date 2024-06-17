@@ -137,7 +137,7 @@ boost::python::list sparseMatrix<scalar>::innerToList()
 template <class scalar>
 sparseMatrix<scalar> sparseMatrix<scalar>::getCol(int col)
 {
-  if ((col + 1) > cols() || (col < 0))
+  if (col >= cols() || (col < 0))
     throw invalidRange;
 
   int start = outer_[col];
