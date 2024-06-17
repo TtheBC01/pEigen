@@ -10,12 +10,6 @@ BOOST_PYTHON_MODULE(libpeigen)
 {
   using namespace boost::python;
 
-  class_<std::vector<double>>("double_vec")
-      .def(vector_indexing_suite<std::vector<double>>());
-
-  class_<std::vector<float>>("float_vec")
-      .def(vector_indexing_suite<std::vector<float>>());
-
   typedef denseMatrix<double> dMDouble;
   typedef sparseMatrix<double> sMDouble;
 
