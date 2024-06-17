@@ -9,6 +9,7 @@ is guaranteed to compile. You don't need to install dependencies on you local en
 ```
 git clone https://github.com/TtheBC01/pEigen.git
 cd pEigen 
+git submodule update --init --recursive
 docker build -t peigen .
 docker run -it --rm --name peigen -v /path/to/pEigen/:/pEigen --entrypoint bash peigen
 ```

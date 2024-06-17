@@ -33,28 +33,28 @@ BOOST_PYTHON_MODULE(libpeigen)
 {
   using namespace boost::python;
 
-  def("doubleVecToList", &vectorToPythonList<double>);
+  def("double_vec_to_list", &vectorToPythonList<double>);
 
-  def("denseMatrixToList", &denseMatrixToPythonList<double>);
+  def("dense_matrix_to_list", &denseMatrixToPythonList<double>);
 
-  class_<std::vector<double>>("doubleVec")
+  class_<std::vector<double>>("double_vec")
       .def(vector_indexing_suite<std::vector<double>>());
 
-  class_<std::vector<float>>("floatVec")
+  class_<std::vector<float>>("float_vec")
       .def(vector_indexing_suite<std::vector<float>>());
 
   typedef denseMatrix<double> dMDouble;
   typedef sparseMatrix<double> sMDouble;
 
-  class_<dMDouble>("denseMatrixDouble")
+  class_<dMDouble>("dense_matrix")
       .def(init<>())
       .def(init<int, int>())
       .def(init<std::vector<double> &, int, int>())
       .def("resize", &dMDouble::resize)
-      .def("setRandom", &dMDouble::setRandom)
+      .def("set_random", &dMDouble::setRandom)
       .def("assign", &dMDouble::assign) // operator= not accessible in python
-      .def("setElem", &dMDouble::setElem)
-      .def("getElem", &dMDouble::getElem)
+      .def("set_elem", &dMDouble::setElem)
+      .def("get_elem", &dMDouble::getElem)
       .def("norm", &dMDouble::norm)
       .def("trace", &dMDouble::trace)
       .def("transpose", &dMDouble::transpose)
@@ -78,12 +78,12 @@ BOOST_PYTHON_MODULE(libpeigen)
       .def("block", &dMDouble::get_block)
       .def("setRow", &dMDouble::set_row)
       .def("setCol", &dMDouble::set_col)
-      .def("setDiagonal", &dMDouble::set_diagonal)
-      .def("setBlock", &dMDouble::set_block)
+      .def("set_diagonal", &dMDouble::set_diagonal)
+      .def("set_block", &dMDouble::set_block)
       .def("save", &dMDouble::save)
       .def("load", &dMDouble::load);
 
-  class_<sMDouble>("sparseMatrixDouble")
+  class_<sMDouble>("sparse_matrix")
       .def(init<>())
       .def(init<int, int>())
       .def(init<int, int, int>())
@@ -91,8 +91,8 @@ BOOST_PYTHON_MODULE(libpeigen)
       .def("resize", &sMDouble::resize)
       .def("reserve", &sMDouble::reserve)
       .def("assign", &sMDouble::assign)   // operator= not accessible in python
-      .def("setElem", &sMDouble::setElem) 
-      .def("getElem", &sMDouble::getElem)
+      .def("set_elem", &sMDouble::setElem) 
+      .def("get_elem", &sMDouble::getElem)
       .def("norm", &sMDouble::norm)
       .def("nnz", static_cast<int (sMDouble::*)()>(&sMDouble::nnz))
       .def("rows", static_cast<int (sMDouble::*)()>(&sMDouble::get_rows))
@@ -117,15 +117,15 @@ BOOST_PYTHON_MODULE(libpeigen)
       .def("load", &sMDouble::load);
 
   typedef denseFactorizationFactory<dMDouble> dFFactory;
-  class_<dFFactory>("denseFactorization")
+  class_<dFFactory>("factorizer")
       .def(init<>())
       .def(init<dMDouble &>())
       .def("reset", &dFFactory::reset)
-      .def("BDCSVD", &dFFactory::BDCSVD)
-      .def("HouseholderQR", &dFFactory::HouseholderQR)
-      .def("PartialPivLU", &dFFactory::PartialPivLU)
-      .def("getU", &dFFactory::getU)
-      .def("getSingularValues", &dFFactory::getSingularValues)
-      .def("getV", &dFFactory::getV)
-      .def("getQ", &dFFactory::getQ);
+      .def("bdcsvd", &dFFactory::BDCSVD)
+      .def("householder_qr", &dFFactory::HouseholderQR)
+      .def("partial_piv_lu", &dFFactory::PartialPivLU)
+      .def("get_u", &dFFactory::getU)
+      .def("get_singular_values", &dFFactory::getSingularValues)
+      .def("get_v", &dFFactory::getV)
+      .def("get_q", &dFFactory::getQ);
 }

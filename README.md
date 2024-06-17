@@ -20,17 +20,17 @@ import libpeigen as peigen
 
 rows = 20
 cols = 30
-denseMat = peigen.denseMatrixDouble(rows, cols)
+denseMat = peigen.dense_matrix(rows, cols)
 
 # set the element on the second row in the first column to 4
-denseMat.setElem(4,1,0)
+denseMat.set_elem(4,1,0)
 
 # you can get a single element like this
-myElement = denseMat.getElem(1,0) # should be 4
+myElement = denseMat.get_elem(1,0) # should be 4
 
 # initialize the whole matrix with random double precision floats with a seed value
 # if you use the same seed, you will get the same random matrix on the same machine
-denseMat.setRandom(3)
+denseMat.set_random(3)
 
 print("Number of Rows: ", denseMat.rows())
 print("Number of Cols: ", denseMat.cols())
@@ -44,7 +44,7 @@ denseMat.transpose().show()
 denseMat *= 3.14
 
 # matrix multiplication
-newDenseMat = peigen.denseMatrixDouble(rows,cols)
+newDenseMat = peigen.dense_matrix(rows,cols)
 newDenseMat.assign(denseMat) # deep copy into new dense matrix object
 result = denseMat * newDenseMat.transpose() # result is a new dense matrix object
 
@@ -79,7 +79,7 @@ You can save a dense matrix to a file to use later.
 ```python
 denseMat.save("myMat.mat")
 
-newDenseMat = peigen.denseMatrixDouble()
+newDenseMat = peigen.dense_matrix()
 newDenseMat.load("myMat.mat")
 ```
 
@@ -95,12 +95,12 @@ import libpeigen as peigen
 rows = 1000
 cols = 2000
 
-sparseMat = peigen.sparseMatrixDouble(rows,cols)
+sparseMat = peigen.sparse_matrix(rows,cols)
 
 sparseMat.nnz() # will be 0 right after initialization
 
 # you can set individual elements like this
-sparseMat.setElem(3.14, 499, 299) # now the element on the 500th row and 300th column is 3.14
+sparseMat.set_elem(3.14, 499, 299) # now the element on the 500th row and 300th column is 3.14
 
 # get the number of rows, columns, and the matrix norm just like with dense matrices
 print("Number of Rows: ", sparseMat.rows())
@@ -108,13 +108,13 @@ print("Number of Cols: ", sparseMat.cols())
 print("Matrix Norm: ", sparseMat.norm())
 
 # you can multiply two sparse matrices together
-newSparseMat = peigen.sparseMatrixDouble()
+newSparseMat = peigen.sparse_matrix()
 newSparseMat.assign(sparseMat)
 result = newSparseMat.transpose() * sparseMat
 
 # you can also multiply dense and sparse matrices together
-denseMat = peigen.denseMatrixDouble(rows, cols)
-denseMat.setRandom(1)
+denseMat = peigen.dense_matrix(rows, cols)
+denseMat.set_random(1)
 result = denseMat.transpose() * sparseMat
 result = sparseMat.transpose() * denseMat
 ```
@@ -124,7 +124,7 @@ You can also save a sparse matrix to a file to use later.
 ```python
 sparseMat.save("myMat.mat")
 
-newSparseMat = peigen.denseMatrixDouble()
+newSparseMat = peigen.dense_matrix()
 newSparseMat.load("myMat.mat")
 ```
 
@@ -139,11 +139,11 @@ import libpeigen as peigen
 
 rows = 10
 cols = 20
-denseMat = peigen.denseMatrixDouble(rows, cols)
-denseMat.setRandom(1)
+denseMat = peigen.dense_matrix(rows, cols)
+denseMat.set_random(1)
 
 # initialize a factorizer object 
-factorizer = peigen.denseDecomposition(denseMat)
+factorizer = peigen.factorizer(denseMat)
 
 # compute the singular value decomposition with the Bidiagonal Divide and Conquer method
 factorizer.BDCSVD()
@@ -163,11 +163,11 @@ factorizer.getV().show()
 ```python
 rows = 10
 cols = 20
-denseMat = peigen.denseMatrixDouble(rows, cols)
-denseMat.setRandom(1)
+denseMat = peigen.dense_matrix(rows, cols)
+denseMat.set_random(1)
 
 # initialize a factorizer object 
-factorizer = peigen.denseDecomposition(denseMat)
+factorizer = peigen.factorizer(denseMat)
 
 # compute QR decomposition with the Householder method
 factorizer.HouseholderQR()

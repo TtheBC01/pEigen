@@ -6,8 +6,8 @@ class DenseMatrixTest(unittest.TestCase):
     def setUp(self):
         self.rows = 2000
         self.cols = 3000
-        self.dense_matrix = peigen.denseMatrixDouble(self.rows, self.cols)
-        self.dense_matrix.setRandom(1)
+        self.dense_matrix = peigen.dense_matrix(self.rows, self.cols)
+        self.dense_matrix.set_random(1)
         
     def test_rows(self):
         self.assertEqual(self.dense_matrix.rows(), self.rows)
@@ -26,34 +26,34 @@ class DenseMatrixTest(unittest.TestCase):
         self.assertEqual(norm_greater_than_0, True)
         
     def test_elem_access(self):
-        self.dense_matrix.setElem(3.14, 5, 4)
-        self.assertEqual(self.dense_matrix.getElem(5,4), 3.14)
+        self.dense_matrix.set_elem(3.14, 5, 4)
+        self.assertEqual(self.dense_matrix.get_elem(5,4), 3.14)
         
     def test_integer_multiplication(self):
-        elem = self.dense_matrix.getElem(1,1)
+        elem = self.dense_matrix.get_elem(1,1)
         self.dense_matrix *= int(2)
-        self.assertEqual(self.dense_matrix.getElem(1,1), int(2)*elem)
+        self.assertEqual(self.dense_matrix.get_elem(1,1), int(2)*elem)
         
     def test_float_multiplication(self):
-        elem = self.dense_matrix.getElem(1,1)
+        elem = self.dense_matrix.get_elem(1,1)
         self.dense_matrix *= float(2.0)
-        self.assertEqual(self.dense_matrix.getElem(1,1), float(2.0)*elem)
+        self.assertEqual(self.dense_matrix.get_elem(1,1), float(2.0)*elem)
         
     def test_plus_equals(self):
-        rhs = peigen.denseMatrixDouble(self.rows, self.cols)
-        rhs.setRandom(3)
-        result = self.dense_matrix.getElem(1,1) + rhs.getElem(1,1)
+        rhs = peigen.dense_matrix(self.rows, self.cols)
+        rhs.set_random(3)
+        result = self.dense_matrix.get_elem(1,1) + rhs.get_elem(1,1)
         self.dense_matrix += rhs
-        self.assertEqual(self.dense_matrix.getElem(1,1), result)
+        self.assertEqual(self.dense_matrix.get_elem(1,1), result)
         
     def test_assignment(self):
-        lhs = peigen.denseMatrixDouble()
+        lhs = peigen.dense_matrix()
         lhs.assign(self.dense_matrix)
         self.assertEqual(lhs.norm(), self.dense_matrix.norm())
         
     def test_matrix_multiplication(self):
-        rhs = peigen.denseMatrixDouble(self.rows, self.cols)
-        rhs.setRandom(3)
+        rhs = peigen.dense_matrix(self.rows, self.cols)
+        rhs.set_random(3)
         result = self.dense_matrix.transpose()*rhs
         norm_greater_than_previous = (result.norm() > self.dense_matrix.norm())
         self.assertEqual(norm_greater_than_previous, True)
@@ -61,16 +61,16 @@ class DenseMatrixTest(unittest.TestCase):
         self.assertEqual(result.cols(), rhs.cols())
 
     def test_dense_sparse_addition(self):
-        dm = peigen.denseMatrixDouble(100,100)
-        dm.setRandom(1)
-        sm = peigen.sparseMatrixDouble(100,100,0)
+        dm = peigen.dense_matrix(100,100)
+        dm.set_random(1)
+        sm = peigen.sparse_matrix(100,100,0)
         result = dm + sm
         self.assertEqual(result.norm(), dm.norm())
 
     def test_dense_sparse_subtraction(self):
-        dm = peigen.denseMatrixDouble(100,100)
-        dm.setRandom(1)
-        sm = peigen.sparseMatrixDouble(100,100,0)
+        dm = peigen.dense_matrix(100,100)
+        dm.set_random(1)
+        sm = peigen.sparse_matrix(100,100,0)
         result = dm - sm
         self.assertEqual(result.norm(), dm.norm())
         

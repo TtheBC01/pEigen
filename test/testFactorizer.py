@@ -2,21 +2,21 @@ import unittest
 import sys
 import libpeigen as peigen
 
-class DenseFactorizationTest(unittest.TestCase):
+class factorizerTest(unittest.TestCase):
     def setUp(self):
         self.rows = 1000
         self.cols = 1000
         
-        self.dense_matrix = peigen.denseMatrixDouble(self.rows, self.cols)
-        self.dense_matrix.setRandom(1)
+        self.dense_matrix = peigen.dense_matrix(self.rows, self.cols)
+        self.dense_matrix.set_random(1)
         
-        self.factorizer = peigen.denseFactorization(self.dense_matrix)
+        self.factorizer = peigen.factorizer(self.dense_matrix)
         
     def test_thin_svd(self):
-        self.factorizer.BDCSVD()
-        S = self.factorizer.getSingularValues()
+        self.factorizer.bdcsvd()
+        S = self.factorizer.get_singular_values()
         norm_greater_than_0 = (S.diagonal(0).norm() > 0)
-        U = self.factorizer.getU()
+        U = self.factorizer.get_u()
         UtU = U.transpose()*U
         trace = UtU.trace()
         residual = (trace - UtU.rows())**2/(UtU.rows()**2)
@@ -25,8 +25,8 @@ class DenseFactorizationTest(unittest.TestCase):
         self.assertEqual(norm_greater_than_0, True)
         
     def test_qr_decomp(self):
-        self.factorizer.HouseholderQR()
-        Q = self.factorizer.getQ()
+        self.factorizer.householder_qr()
+        Q = self.factorizer.get_q()
         QtQ = Q.transpose()*Q
         trace = QtQ.trace()
         residual = (trace - QtQ.rows())**2/(QtQ.rows()**2)
