@@ -4,7 +4,9 @@
 #include <vector>
 #include <fstream>
 #include <exception>
+#include <string>
 
+#include <boost/python.hpp>
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/serialization/binary_object.hpp>
@@ -40,7 +42,7 @@ public:
 
   denseMatrix(std::vector<scalar> &data, int rows, int cols);
 
-  denseMatrix(std::vector<scalar> &data, int rows, int cols, bool trnsps);
+  denseMatrix(boost::python::list &dataList, int rows, int cols);
 
   void resize(int rows, int cols);
 
@@ -49,28 +51,33 @@ public:
   void save(std::string fname);
   void load(std::string fname);
 
+  std::string repr() {return "Dense Matrix: " + std::to_string(rows()) + " rows, " + std::to_string(cols()) + " cols";}
+
+  boost::python::list toList();
+
   int rows() { return rows_; };
   int rows() const { return rows_; };
-  int get_rows() { return transpose_mat ? cols_ : rows_; }
-  int get_rows() const { return transpose_mat ? cols_ : rows_; }
+  int getRows() { return transpose_mat ? cols_ : rows_; }
+  int getRows() const { return transpose_mat ? cols_ : rows_; }
 
   int cols() { return cols_; };
   int cols() const { return cols_; }
-  int get_cols() { return transpose_mat ? rows_ : cols_; }
-  int get_cols() const { return transpose_mat ? rows_ : cols_; }
+  int getCols() { return transpose_mat ? rows_ : cols_; }
+  int getCols() const { return transpose_mat ? rows_ : cols_; }
 
-  denseMatrix get_row(int i);
-  denseMatrix get_col(int i);
-  denseMatrix get_diagonal(int i);
-  denseMatrix get_block(int i, int j, int k, int l);
+  denseMatrix getRow(int i);
+  denseMatrix getCol(int i);
+  denseMatrix getRowOrCol(int i);
+  denseMatrix getDiagonal(int i);
+  denseMatrix getBlock(int i, int j, int k, int l);
 
-  void set_row(int i, const denseMatrix &r);
-  void set_col(int i, const denseMatrix &c);
-  void set_diagonal(int i, const denseMatrix &d);
-  void set_block(int i, int j, int k, int l, const denseMatrix &b);
+  void setRow(int i, const denseMatrix &r);
+  void setCol(int i, const denseMatrix &c);
+  void setDiagonal(int i, const denseMatrix &d);
+  void setBlock(int i, int j, int k, int l, const denseMatrix &b);
 
-  bool is_transpose() { return transpose_mat; }
-  bool is_transpose() const { return transpose_mat; }
+  bool isTranspose() { return transpose_mat; }
+  bool isTranspose() const { return transpose_mat; }
 
   std::vector<scalar> &container() { return data_; }
   std::vector<scalar> container() const { return data_; }
@@ -130,7 +137,7 @@ private:
 
   // track if matrix is transposed
   bool transpose_mat;
-  void set_transpose() { transpose_mat = true; }
+  void setTranspose() { transpose_mat = true; }
 
   /// container class to hold data for eigen map
   std::vector<scalar> data_;

@@ -32,6 +32,10 @@ myElement = dmat.get_elem(1,0) # should be 4
 # if you use the same seed, you will get the same random matrix on the same machine
 dmat.set_random(3)
 
+# the [] operator will return a dense matrix object
+dmat[1].show() # this will return the second row as a dense matrix
+dmat[1][0].show() # this will return the element on the second row on the first column as a sense matrix
+
 print("Number of Rows: ", dmat.rows())
 print("Number of Cols: ", dmat.cols())
 print("Matrix Norm: ", dmat.norm())

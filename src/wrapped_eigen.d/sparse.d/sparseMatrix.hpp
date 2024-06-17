@@ -3,7 +3,9 @@
 
 #include <vector>
 #include <fstream>
+#include <string>
 
+#include <boost/python.hpp>
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/serialization/binary_object.hpp>
@@ -13,6 +15,7 @@
 #include <Eigen/Core>
 #include <Eigen/Sparse>
 
+// Forward declaration for sparse/dense operations
 template <class scalar>
 class denseMatrix;
 
@@ -24,45 +27,49 @@ public:
 
   sparseMatrix(int rows, int cols);
 
-  sparseMatrix(int rows, int cols, int nnz);
-
   sparseMatrix(std::vector<scalar> &data, std::vector<int> &outer_, std::vector<int> &inner_, int rows, int cols);
 
-  void resize(int rows, int cols);
+  sparseMatrix(boost::python::list &dataList, boost::python::list &outerList, boost::python::list &innerList, int rows, int cols);
 
-  void reserve(int rows, int cols, int nnz);
+  void resize(int rows, int cols);
 
   void clear();
 
   void save(std::string fname);
   void load(std::string fname);
 
+  boost::python::list dataToList();
+  boost::python::list outerToList();
+  boost::python::list innerToList();
+
+  std::string repr() {return "Sparse Matrix: " + std::to_string(rows()) + " rows, " + std::to_string(cols()) + " cols, " + std::to_string(nnz()) + " nnz";}
+
   int nnz() { return nnz_; }
   int nnz() const { return nnz_; }
 
   int rows() { return rows_; }
   int rows() const { return rows_; }
-  int get_rows() { return transpose_mat ? cols_ : rows_; }
-  int get_rows() const { return transpose_mat ? cols_ : rows_; }
+  int getRows() { return transpose_mat ? cols_ : rows_; }
+  int getRows() const { return transpose_mat ? cols_ : rows_; }
 
   int cols() { return cols_; }
   int cols() const { return cols_; }
-  int get_cols() { return transpose_mat ? rows_ : cols_; }
-  int get_cols() const { return transpose_mat ? rows_ : cols_; }
+  int getCols() { return transpose_mat ? rows_ : cols_; }
+  int getCols() const { return transpose_mat ? rows_ : cols_; }
 
-  sparseMatrix get_col(int col);
+  sparseMatrix getCol(int col);
 
-  bool is_transpose() { return transpose_mat; }
-  bool is_transpose() const { return transpose_mat; }
+  bool isTranspose() { return transpose_mat; }
+  bool isTranspose() const { return transpose_mat; }
 
-  std::vector<scalar> &data_container() { return data_; }
-  std::vector<scalar> data_container() const { return data_; }
+  std::vector<scalar> &dataContainer() { return data_; }
+  std::vector<scalar> dataContainer() const { return data_; }
 
-  std::vector<int> &inner_container() { return inner_; }
-  std::vector<int> inner_container() const { return inner_; }
+  std::vector<int> &innerContainer() { return inner_; }
+  std::vector<int> innerContainer() const { return inner_; }
 
-  std::vector<int> &outer_container() { return outer_; }
-  std::vector<int> outer_container() const { return outer_; }
+  std::vector<int> &outerContainer() { return outer_; }
+  std::vector<int> outerContainer() const { return outer_; }
 
   Eigen::Map<Eigen::SparseMatrix<scalar>> getEigenMap();
   Eigen::Map<const Eigen::SparseMatrix<scalar>> getEigenMap() const;
@@ -102,7 +109,7 @@ public:
   size_t size();
 
   void print();
-  void print_block(int startRow, int startCol, int rows, int cols);
+  void printBlock(int startRow, int startCol, int rows, int cols);
 
   scalar norm();
 
@@ -128,7 +135,7 @@ private:
 
   // track if matrix is transposed
   bool transpose_mat;
-  void set_transpose() { transpose_mat = true; }
+  void setTranspose() { transpose_mat = true; }
 
   /// container class to hold data for eigen map
   std::vector<scalar> data_;

@@ -22,18 +22,6 @@ sparseMatrix<scalar>::sparseMatrix(int rows, int cols)
 }
 
 template <class scalar>
-sparseMatrix<scalar>::sparseMatrix(int rows, int cols, int nnz)
-    : rows_(rows),
-      cols_(cols),
-      data_(nnz),
-      outer_(cols + 1, 0),
-      inner_(nnz),
-      nnz_(nnz),
-      transpose_mat(false)
-{
-}
-
-template <class scalar>
 sparseMatrix<scalar>::sparseMatrix(std::vector<scalar> &data, std::vector<int> &outer, std::vector<int> &inner, int rows, int cols)
     : data_(data),
       outer_(outer),
@@ -46,22 +34,37 @@ sparseMatrix<scalar>::sparseMatrix(std::vector<scalar> &data, std::vector<int> &
 }
 
 template <class scalar>
+sparseMatrix<scalar>::sparseMatrix(boost::python::list &dataList, boost::python::list &outerList, boost::python::list &innerList, int rows, int cols)
+    : rows_(rows),
+      cols_(cols),
+      nnz_(boost::python::len(dataList)),
+      transpose_mat(false)
+{
+  if ((boost::python::len(dataList) > rows * cols) || (boost::python::len(outerList) != cols + 1) || (boost::python::len(dataList) != boost::python::len(innerList)))
+    throw dimensionMismatch;
+    
+  for (int i = 0; i < boost::python::len(dataList); ++i)
+  {
+    data_.push_back(boost::python::extract<scalar>(dataList[i]));
+  }
+
+  for (int i = 0; i < boost::python::len(outerList); ++i)
+  {
+    outer_.push_back(boost::python::extract<scalar>(outerList[i]));
+  }
+
+  for (int i = 0; i < boost::python::len(innerList); ++i)
+  {
+    inner_.push_back(boost::python::extract<scalar>(innerList[i]));
+  }
+}
+
+template <class scalar>
 void sparseMatrix<scalar>::resize(int rows, int cols)
 {
   rows_ = rows;
   cols_ = cols;
   outer_.assign(cols + 1, 0);
-}
-
-template <class scalar>
-void sparseMatrix<scalar>::reserve(int rows, int cols, int nnz)
-{
-  rows_ = rows;
-  cols_ = cols;
-  nnz_ = nnz;
-  data_.assign(nnz_, 0);
-  outer_.assign(cols + 1, 0);
-  inner_.assign(nnz_, 0);
 }
 
 template <class scalar>
@@ -93,8 +96,49 @@ void sparseMatrix<scalar>::load(std::string fname)
 }
 
 template <class scalar>
-sparseMatrix<scalar> sparseMatrix<scalar>::get_col(int col)
+boost::python::list sparseMatrix<scalar>::dataToList()
 {
+  boost::python::list list;
+  const std::vector<scalar> &vec = this->dataContainer();
+  for (typename std::vector<scalar>::const_iterator iter = vec.begin(); iter != vec.end(); ++iter)
+  {
+    list.append(*iter);
+  }
+
+  return list;
+}
+
+template <class scalar>
+boost::python::list sparseMatrix<scalar>::outerToList()
+{
+  boost::python::list list;
+  const std::vector<int> &vec = this->outerContainer();
+  for (std::vector<int>::const_iterator iter = vec.begin(); iter != vec.end(); ++iter)
+  {
+    list.append(*iter);
+  }
+
+  return list;
+}
+
+template <class scalar>
+boost::python::list sparseMatrix<scalar>::innerToList()
+{
+  boost::python::list list;
+  const std::vector<int> &vec = this->innerContainer();
+  for (std::vector<int>::const_iterator iter = vec.begin(); iter != vec.end(); ++iter)
+  {
+    list.append(*iter);
+  }
+
+  return list;
+}
+
+template <class scalar>
+sparseMatrix<scalar> sparseMatrix<scalar>::getCol(int col)
+{
+  if ((col + 1) > cols() || (col < 0))
+    throw invalidRange;
 
   int start = outer_[col];
   int end = outer_[col + 1];
@@ -139,27 +183,27 @@ sparseMatrix<scalar> &sparseMatrix<scalar>::operator=(const sparseMatrix &other)
   nnz_ = other.nnz();
   rows_ = other.rows();
   cols_ = other.cols();
-  data_ = other.data_container();
-  inner_ = other.inner_container();
-  outer_ = other.outer_container();
-  transpose_mat = other.is_transpose();
+  data_ = other.dataContainer();
+  inner_ = other.innerContainer();
+  outer_ = other.outerContainer();
+  transpose_mat = other.isTranspose();
   return *this;
 }
 
 template <class scalar>
 sparseMatrix<scalar> &sparseMatrix<scalar>::operator+=(const sparseMatrix &other)
 {
-  if (get_rows() != other.get_rows() || get_cols() != other.get_cols())
+  if (getRows() != other.getRows() || getCols() != other.getCols())
     throw dimensionMismatch;
 
-  Eigen::SparseMatrix<scalar> result(get_rows(), get_rows());
+  Eigen::SparseMatrix<scalar> result(getRows(), getRows());
 
-  if (is_transpose())
+  if (isTranspose())
     result = Eigen::SparseMatrix<scalar>(this->getEigenMap().transpose());
   else
     result = this->getEigenMap();
 
-  if (other.is_transpose())
+  if (other.isTranspose())
     result += Eigen::SparseMatrix<scalar>(other.getEigenMap().transpose());
   else
     result += other.getEigenMap();
@@ -168,7 +212,7 @@ sparseMatrix<scalar> &sparseMatrix<scalar>::operator+=(const sparseMatrix &other
 
   for (int k = 0; k < result.outerSize(); ++k)
     for (typename Eigen::SparseMatrix<scalar>::InnerIterator it(result, k); it; ++it)
-      setElem(it.value(), (is_transpose() ? it.col() : it.row()), (is_transpose() ? it.row() : it.col()));
+      setElem(it.value(), (isTranspose() ? it.col() : it.row()), (isTranspose() ? it.row() : it.col()));
 
   return *this;
 }
@@ -176,17 +220,17 @@ sparseMatrix<scalar> &sparseMatrix<scalar>::operator+=(const sparseMatrix &other
 template <class scalar>
 sparseMatrix<scalar> &sparseMatrix<scalar>::operator-=(const sparseMatrix &other)
 {
-  if (get_rows() != other.get_rows() || get_cols() != other.get_cols())
+  if (getRows() != other.getRows() || getCols() != other.getCols())
     throw dimensionMismatch;
 
-  Eigen::SparseMatrix<scalar> result(get_rows(), get_rows());
+  Eigen::SparseMatrix<scalar> result(getRows(), getRows());
 
-  if (is_transpose())
+  if (isTranspose())
     result = Eigen::SparseMatrix<scalar>(this->getEigenMap().transpose());
   else
     result = this->getEigenMap();
 
-  if (other.is_transpose())
+  if (other.isTranspose())
     result -= Eigen::SparseMatrix<scalar>(other.getEigenMap().transpose());
   else
     result -= other.getEigenMap();
@@ -195,7 +239,7 @@ sparseMatrix<scalar> &sparseMatrix<scalar>::operator-=(const sparseMatrix &other
 
   for (int k = 0; k < result.outerSize(); ++k)
     for (typename Eigen::SparseMatrix<scalar>::InnerIterator it(result, k); it; ++it)
-      setElem(it.value(), (is_transpose() ? it.col() : it.row()), (is_transpose() ? it.row() : it.col()));
+      setElem(it.value(), (isTranspose() ? it.col() : it.row()), (isTranspose() ? it.row() : it.col()));
 
   return *this;
 }
@@ -210,7 +254,7 @@ sparseMatrix<scalar> &sparseMatrix<scalar>::operator*=(const double a)
 template <class scalar>
 sparseMatrix<scalar> sparseMatrix<scalar>::operator+(const sparseMatrix &other)
 {
-  if ((get_cols() != other.get_cols()) && (get_rows() != other.get_rows()))
+  if ((getCols() != other.getCols()) && (getRows() != other.getRows()))
     throw dimensionMismatch;
 
   sparseMatrix<scalar> result = other;
@@ -222,7 +266,7 @@ sparseMatrix<scalar> sparseMatrix<scalar>::operator+(const sparseMatrix &other)
 template <class scalar>
 sparseMatrix<scalar> sparseMatrix<scalar>::operator-(const sparseMatrix &other)
 {
-  if ((get_cols() != other.get_cols()) && (get_rows() != other.get_rows()))
+  if ((getCols() != other.getCols()) && (getRows() != other.getRows()))
     throw dimensionMismatch;
 
   sparseMatrix<scalar> result = *this;
@@ -234,19 +278,19 @@ sparseMatrix<scalar> sparseMatrix<scalar>::operator-(const sparseMatrix &other)
 template <class scalar>
 sparseMatrix<scalar> sparseMatrix<scalar>::operator*(const sparseMatrix &other)
 {
-  if (get_cols() != other.get_rows())
+  if (getCols() != other.getRows())
     throw dimensionMismatch;
 
-  Eigen::SparseMatrix<scalar> result(get_rows(), other.get_cols());
-  sparseMatrix<scalar> container(get_rows(), other.get_cols());
+  Eigen::SparseMatrix<scalar> result(getRows(), other.getCols());
+  sparseMatrix<scalar> container(getRows(), other.getCols());
 
-  if (!is_transpose() && !other.is_transpose())                    // this * other
+  if (!isTranspose() && !other.isTranspose())                    // this * other
     result = (this->getEigenMap() * other.getEigenMap()).pruned(); // prune explicit zeros from the result
-  else if (!is_transpose() && other.is_transpose())                // this * other^T
+  else if (!isTranspose() && other.isTranspose())                // this * other^T
     result = (this->getEigenMap() * other.getEigenMap().transpose()).pruned();
-  else if (is_transpose() && other.is_transpose()) // this^T * other^T
+  else if (isTranspose() && other.isTranspose()) // this^T * other^T
     result = (this->getEigenMap().transpose() * other.getEigenMap().transpose()).pruned();
-  else if (is_transpose() && !other.is_transpose()) // this^T * other
+  else if (isTranspose() && !other.isTranspose()) // this^T * other
     result = (this->getEigenMap().transpose() * other.getEigenMap()).pruned();
 
   for (int k = 0; k < result.outerSize(); ++k)
@@ -259,18 +303,18 @@ sparseMatrix<scalar> sparseMatrix<scalar>::operator*(const sparseMatrix &other)
 template <class scalar>
 denseMatrix<scalar> sparseMatrix<scalar>::operator*(const denseMatrix<scalar> &other)
 {
-  if (get_cols() != other.get_rows())
+  if (getCols() != other.getRows())
     throw dimensionMismatch;
 
-  denseMatrix<scalar> result(get_rows(), other.get_cols());
+  denseMatrix<scalar> result(getRows(), other.getCols());
 
-  if (!is_transpose() && !other.is_transpose()) // this * other
+  if (!isTranspose() && !other.isTranspose()) // this * other
     result.getEigenMap() = this->getEigenMap() * other.getEigenMap();
-  else if (!is_transpose() && other.is_transpose()) // this * other^T
+  else if (!isTranspose() && other.isTranspose()) // this * other^T
     result.getEigenMap() = this->getEigenMap() * other.getEigenMap().transpose();
-  else if (is_transpose() && other.is_transpose()) // this^T * other^T
+  else if (isTranspose() && other.isTranspose()) // this^T * other^T
     result.getEigenMap() = this->getEigenMap().transpose() * other.getEigenMap().transpose();
-  else if (is_transpose() && !other.is_transpose()) // this^T * other
+  else if (isTranspose() && !other.isTranspose()) // this^T * other
     result.getEigenMap() = this->getEigenMap().transpose() * other.getEigenMap();
 
   return result;
@@ -279,17 +323,17 @@ denseMatrix<scalar> sparseMatrix<scalar>::operator*(const denseMatrix<scalar> &o
 template <class scalar>
 denseMatrix<scalar> sparseMatrix<scalar>::operator+(const denseMatrix<scalar> &other)
 {
-  if ((get_cols() != other.get_cols()) && (get_rows() != other.get_rows()))
+  if ((getCols() != other.getCols()) && (getRows() != other.getRows()))
     throw dimensionMismatch;
 
-  denseMatrix<scalar> result(get_rows(), get_cols());
+  denseMatrix<scalar> result(getRows(), getCols());
 
-  if (other.is_transpose())
+  if (other.isTranspose())
     result.getEigenMap() = other.getEigenMap().transpose();
   else
     result.getEigenMap() = other.getEigenMap();
 
-  if (is_transpose())
+  if (isTranspose())
     result.getEigenMap() += this->getEigenMap().transpose();
   else
     result.getEigenMap() += this->getEigenMap();
@@ -300,17 +344,17 @@ denseMatrix<scalar> sparseMatrix<scalar>::operator+(const denseMatrix<scalar> &o
 template <class scalar>
 denseMatrix<scalar> sparseMatrix<scalar>::operator-(const denseMatrix<scalar> &other)
 {
-  if ((get_cols() != other.get_cols()) && (get_rows() != other.get_rows()))
+  if ((getCols() != other.getCols()) && (getRows() != other.getRows()))
     throw dimensionMismatch;
 
-  denseMatrix<scalar> result(get_rows(), get_cols());
+  denseMatrix<scalar> result(getRows(), getCols());
 
-  if (other.is_transpose())
+  if (other.isTranspose())
     result.getEigenMap() = -1 * other.getEigenMap().transpose();
   else
     result.getEigenMap() = -1 * other.getEigenMap();
 
-  if (is_transpose())
+  if (isTranspose())
     result.getEigenMap() += this->getEigenMap().transpose();
   else
     result.getEigenMap() += this->getEigenMap();
@@ -331,7 +375,7 @@ template <class scalar>
 sparseMatrix<scalar> sparseMatrix<scalar>::transpose()
 {
   sparseMatrix<scalar> tmat(data_, outer_, inner_, rows_, cols_);
-  tmat.set_transpose();
+  tmat.setTranspose();
   return tmat;
 }
 
@@ -344,7 +388,7 @@ void sparseMatrix<scalar>::assign(const sparseMatrix &other)
 template <class scalar>
 void sparseMatrix<scalar>::setElem(scalar elem, int row, int col)
 {
-  if ((row >= rows()) || (row < 0) || (col >= cols()) || (col < 0))
+  if (((row + 1) >= rows()) || (row < 0) || ((col + 1) >= cols()) || (col < 0))
     throw invalidRange;
 
   // get nnz up to row before insertion row
@@ -385,7 +429,7 @@ void sparseMatrix<scalar>::setElem(scalar elem, int row, int col)
 template <class scalar>
 scalar sparseMatrix<scalar>::getElem(int row, int col)
 {
-  if ((row >= rows()) || (row < 0) || (col >= cols()) || (col < 0))
+  if (((row + 1) >= rows()) || (row < 0) || ((col + 1) >= cols()) || (col < 0))
     throw invalidRange;
 
   // get nnz up to row before insertion row
@@ -416,7 +460,7 @@ size_t sparseMatrix<scalar>::size()
 template <class scalar>
 void sparseMatrix<scalar>::print()
 {
-  if (!is_transpose())
+  if (!isTranspose())
     std::cout << "data =\n"
               << this->getEigenMap() << std::endl;
   else
@@ -425,9 +469,9 @@ void sparseMatrix<scalar>::print()
 }
 
 template <class scalar>
-void sparseMatrix<scalar>::print_block(int startRow, int startCol, int rows, int cols)
+void sparseMatrix<scalar>::printBlock(int startRow, int startCol, int rows, int cols)
 {
-  if (!is_transpose())
+  if (!isTranspose())
     std::cout << "data =\n"
               << this->getEigenMap().block(startRow, startCol, rows, cols) << std::endl;
   else

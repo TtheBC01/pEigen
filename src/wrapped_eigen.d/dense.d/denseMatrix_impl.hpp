@@ -27,6 +27,21 @@ denseMatrix<scalar>::denseMatrix(std::vector<scalar> &data, int rows, int cols)
 }
 
 template <class scalar>
+denseMatrix<scalar>::denseMatrix(boost::python::list &dataList, int rows, int cols)
+    : rows_(rows),
+      cols_(cols),
+      transpose_mat(false)
+{
+  if (boost::python::len(dataList) != rows * cols)
+    throw dimensionMismatch;
+    
+  for (int i = 0; i < boost::python::len(dataList); ++i)
+  {
+    data_.push_back(boost::python::extract<scalar>(dataList[i]));
+  }
+}
+
+template <class scalar>
 void denseMatrix<scalar>::resize(int rows, int cols)
 {
   rows_ = rows;
@@ -60,23 +75,69 @@ void denseMatrix<scalar>::load(std::string fname)
 }
 
 template <class scalar>
-denseMatrix<scalar> denseMatrix<scalar>::get_row(int row)
+boost::python::list denseMatrix<scalar>::toList()
 {
+  boost::python::list list;
+  const std::vector<scalar> &vec = this->container();
+  for (typename std::vector<scalar>::const_iterator iter = vec.begin(); iter != vec.end(); ++iter)
+  {
+    list.append(*iter);
+  }
+
+  return list;
+}
+
+template <class scalar>
+denseMatrix<scalar> denseMatrix<scalar>::getRow(int row)
+{
+  if (((row + 1) > rows()) || (row < 0))
+    throw invalidRange;
+
   denseMatrix newrow(1, cols_);
   newrow.getEigenMap() = this->getEigenMap().row(row);
   return newrow;
 }
 
 template <class scalar>
-denseMatrix<scalar> denseMatrix<scalar>::get_col(int col)
+denseMatrix<scalar> denseMatrix<scalar>::getCol(int col)
 {
+  if (((col + 1) > cols()) || (col < 0))
+    throw invalidRange;
+
   denseMatrix column(rows_, 1);
   column.getEigenMap() = this->getEigenMap().col(col);
   return column;
 }
 
 template <class scalar>
-denseMatrix<scalar> denseMatrix<scalar>::get_diagonal(int n)
+denseMatrix<scalar> denseMatrix<scalar>::getRowOrCol(int selector)
+{
+  // this is here for implementing the __getitem__ dunder method
+  // Example:
+  // dm[0] will return the first row
+  // dm[0][0] will return the first element of the first row
+  if (rows() > 1)
+  { // return a row
+    if ((selector + 1) > rows())
+      throw invalidRange;
+
+    denseMatrix selectedRow(1, cols());
+    selectedRow.getEigenMap() = this->getEigenMap().row(selector);
+    return selectedRow;
+  }
+  else
+  {
+    if ((selector + 1) > cols())
+      throw invalidRange;
+
+    denseMatrix selectedColumn(rows(), 1);
+    selectedColumn.getEigenMap() = this->getEigenMap().col(selector);
+    return selectedColumn;
+  }
+}
+
+template <class scalar>
+denseMatrix<scalar> denseMatrix<scalar>::getDiagonal(int n)
 {
   denseMatrix diag(rows_, 1);
   diag.getEigenMap() = this->getEigenMap().diagonal(n);
@@ -84,9 +145,9 @@ denseMatrix<scalar> denseMatrix<scalar>::get_diagonal(int n)
 }
 
 template <class scalar>
-denseMatrix<scalar> denseMatrix<scalar>::get_block(int row, int col, int nrows, int ncols)
+denseMatrix<scalar> denseMatrix<scalar>::getBlock(int row, int col, int nrows, int ncols)
 {
-  if ((row > rows()) || (col > cols()) || (row < 0) || (col < 0))
+  if (((row + 1) > rows()) || ((col + 1) > cols()) || (row < 0) || (col < 0))
     throw invalidRange;
 
   denseMatrix block(nrows, ncols);
@@ -95,30 +156,30 @@ denseMatrix<scalar> denseMatrix<scalar>::get_block(int row, int col, int nrows, 
 }
 
 template <class scalar>
-void denseMatrix<scalar>::set_row(int row, const denseMatrix &rmat)
+void denseMatrix<scalar>::setRow(int row, const denseMatrix &rmat)
 {
-  if ((rmat.rows() != 1) && (rmat.cols() != cols_))
+  if ((rmat.rows() != 1) && (rmat.cols() != cols()))
     throw dimensionMismatch;
 
   this->getEigenMap().row(row) = rmat.getEigenMap();
 }
 
 template <class scalar>
-void denseMatrix<scalar>::set_col(int col, const denseMatrix &cmat)
+void denseMatrix<scalar>::setCol(int col, const denseMatrix &cmat)
 {
-  if ((cmat.cols() != 1) && (cmat.rows() != rows_))
+  if ((cmat.cols() != 1) && (cmat.rows() != rows()))
     throw dimensionMismatch;
 
   this->getEigenMap().col(col) = cmat.getEigenMap();
 }
 
 template <class scalar>
-void denseMatrix<scalar>::set_diagonal(int d, const denseMatrix &dmat)
+void denseMatrix<scalar>::setDiagonal(int d, const denseMatrix &dmat)
 {
-  // first, dmat must be a vector 
+  // first, dmat must be a vector
   if ((dmat.cols() != 1) && (dmat.rows() != 1))
     throw dimensionMismatch;
-  
+
   // second, the length of the diagonal must equal the length of dmat
   if ((dmat.cols() != this->getEigenMap().diagonal(d).rows()) && (dmat.rows() != this->getEigenMap().diagonal(d).rows()))
     throw dimensionMismatch;
@@ -127,9 +188,9 @@ void denseMatrix<scalar>::set_diagonal(int d, const denseMatrix &dmat)
 }
 
 template <class scalar>
-void denseMatrix<scalar>::set_block(int i, int j, int k, int l, const denseMatrix &bmat)
+void denseMatrix<scalar>::setBlock(int i, int j, int k, int l, const denseMatrix &bmat)
 {
-  if ( (i > rows()) || (j > cols()) || (i < 0) || (j < 0))
+  if (((i + 1) > rows()) || ((j + 1) > cols()) || (i < 0) || (j < 0))
     throw invalidRange;
 
   if ((k != bmat.rows()) && (l != bmat.cols()))
@@ -164,23 +225,23 @@ denseMatrix<scalar> &denseMatrix<scalar>::operator=(const denseMatrix &other)
   rows_ = other.rows();
   cols_ = other.cols();
   data_ = other.container();
-  transpose_mat = other.is_transpose();
+  transpose_mat = other.isTranspose();
   return *this;
 }
 
 template <class scalar>
 denseMatrix<scalar> &denseMatrix<scalar>::operator+=(const denseMatrix &other)
 {
-  if ((get_rows() != other.get_rows()) && (get_cols() != other.get_cols()))
+  if ((getRows() != other.getRows()) && (getCols() != other.getCols()))
     throw dimensionMismatch;
 
-  if (!is_transpose() && !other.is_transpose()) // this + other
+  if (!isTranspose() && !other.isTranspose()) // this + other
     this->getEigenMap() += other.getEigenMap();
-  else if (is_transpose() && !other.is_transpose()) // this^T + other
+  else if (isTranspose() && !other.isTranspose()) // this^T + other
     this->getEigenMap().transpose() += other.getEigenMap();
-  else if (is_transpose() && other.is_transpose()) // this^T + other^T
+  else if (isTranspose() && other.isTranspose()) // this^T + other^T
     this->getEigenMap().transpose() += other.getEigenMap().transpose();
-  else if (!is_transpose() && other.is_transpose()) // this + other^T
+  else if (!isTranspose() && other.isTranspose()) // this + other^T
     this->getEigenMap() += other.getEigenMap().transpose();
 
   return *this;
@@ -189,16 +250,16 @@ denseMatrix<scalar> &denseMatrix<scalar>::operator+=(const denseMatrix &other)
 template <class scalar>
 denseMatrix<scalar> &denseMatrix<scalar>::operator-=(const denseMatrix &other)
 {
-  if ((get_rows() != other.get_rows()) && (get_cols() != other.get_cols()))
+  if ((getRows() != other.getRows()) && (getCols() != other.getCols()))
     throw dimensionMismatch;
 
-  if (!is_transpose() && !other.is_transpose()) // this - other
+  if (!isTranspose() && !other.isTranspose()) // this - other
     this->getEigenMap() -= other.getEigenMap();
-  else if (is_transpose() && !other.is_transpose()) // this^T - other
+  else if (isTranspose() && !other.isTranspose()) // this^T - other
     this->getEigenMap().transpose() -= other.getEigenMap();
-  else if (is_transpose() && other.is_transpose()) // this^T - other^T
+  else if (isTranspose() && other.isTranspose()) // this^T - other^T
     this->getEigenMap().transpose() -= other.getEigenMap().transpose();
-  else if (!is_transpose() && other.is_transpose()) // this - other^T
+  else if (!isTranspose() && other.isTranspose()) // this - other^T
     this->getEigenMap() -= other.getEigenMap().transpose();
 
   return *this;
@@ -233,19 +294,19 @@ denseMatrix<scalar> denseMatrix<scalar>::operator-(const denseMatrix &other)
 template <class scalar>
 denseMatrix<scalar> denseMatrix<scalar>::operator*(const denseMatrix &other)
 {
-  if (get_cols() != other.get_rows())
+  if (getCols() != other.getRows())
     throw dimensionMismatch;
 
   // size the result properly
-  denseMatrix<scalar> result(get_rows(), other.get_cols());
+  denseMatrix<scalar> result(getRows(), other.getCols());
 
-  if (!is_transpose() && !other.is_transpose())
+  if (!isTranspose() && !other.isTranspose())
     result.getEigenMap() = this->getEigenMap() * other.getEigenMap();
-  else if (is_transpose() && !other.is_transpose())
+  else if (isTranspose() && !other.isTranspose())
     result.getEigenMap() = this->getEigenMap().transpose() * other.getEigenMap();
-  else if (is_transpose() && other.is_transpose())
+  else if (isTranspose() && other.isTranspose())
     result.getEigenMap() = this->getEigenMap().transpose() * other.getEigenMap().transpose();
-  else if (!is_transpose() && other.is_transpose())
+  else if (!isTranspose() && other.isTranspose())
     result.getEigenMap() = this->getEigenMap() * other.getEigenMap().transpose();
 
   return result;
@@ -254,18 +315,18 @@ denseMatrix<scalar> denseMatrix<scalar>::operator*(const denseMatrix &other)
 template <class scalar>
 denseMatrix<scalar> denseMatrix<scalar>::operator*(const sparseMatrix<scalar> &other)
 {
-  if (get_cols() != other.get_rows())
+  if (getCols() != other.getRows())
     throw dimensionMismatch;
 
-  denseMatrix<scalar> result(get_rows(), other.get_cols());
+  denseMatrix<scalar> result(getRows(), other.getCols());
 
-  if (!is_transpose() && !other.is_transpose()) // this * this
+  if (!isTranspose() && !other.isTranspose()) // this * this
     result.getEigenMap() = this->getEigenMap() * other.getEigenMap();
-  if (!is_transpose() && other.is_transpose()) // this * this^T
+  if (!isTranspose() && other.isTranspose()) // this * this^T
     result.getEigenMap() = this->getEigenMap() * other.getEigenMap().transpose();
-  if (is_transpose() && other.is_transpose()) // this^T * this^T
+  if (isTranspose() && other.isTranspose()) // this^T * this^T
     result.getEigenMap() = this->getEigenMap().transpose() * other.getEigenMap().transpose();
-  if (is_transpose() && !other.is_transpose()) // this^T * this
+  if (isTranspose() && !other.isTranspose()) // this^T * this
     result.getEigenMap() = this->getEigenMap().transpose() * other.getEigenMap();
 
   return result;
@@ -274,18 +335,18 @@ denseMatrix<scalar> denseMatrix<scalar>::operator*(const sparseMatrix<scalar> &o
 template <class scalar>
 denseMatrix<scalar> denseMatrix<scalar>::operator+(const sparseMatrix<scalar> &other)
 {
-  if ((get_cols() != other.get_cols()) && (get_rows() != other.get_rows()))
+  if ((getCols() != other.getCols()) && (getRows() != other.getRows()))
     throw dimensionMismatch;
 
-  denseMatrix<scalar> result(get_rows(), get_cols());
+  denseMatrix<scalar> result(getRows(), getCols());
 
-  if (!is_transpose() && !other.is_transpose()) // this + this
+  if (!isTranspose() && !other.isTranspose()) // this + this
     result.getEigenMap() = this->getEigenMap() + other.getEigenMap();
-  if (!is_transpose() && other.is_transpose()) // this + this^T
+  if (!isTranspose() && other.isTranspose()) // this + this^T
     result.getEigenMap() = this->getEigenMap() + other.getEigenMap().transpose();
-  if (is_transpose() && other.is_transpose()) // this^T + this^T
+  if (isTranspose() && other.isTranspose()) // this^T + this^T
     result.getEigenMap() = this->getEigenMap().transpose() + other.getEigenMap().transpose();
-  if (is_transpose() && !other.is_transpose()) // this^T + this
+  if (isTranspose() && !other.isTranspose()) // this^T + this
     result.getEigenMap() = this->getEigenMap().transpose() + other.getEigenMap();
 
   return result;
@@ -294,18 +355,18 @@ denseMatrix<scalar> denseMatrix<scalar>::operator+(const sparseMatrix<scalar> &o
 template <class scalar>
 denseMatrix<scalar> denseMatrix<scalar>::operator-(const sparseMatrix<scalar> &other)
 {
-  if ((get_cols() != other.get_cols()) && (get_rows() != other.get_rows()))
+  if ((getCols() != other.getCols()) && (getRows() != other.getRows()))
     throw dimensionMismatch;
 
-  denseMatrix<scalar> result(get_rows(), get_cols());
+  denseMatrix<scalar> result(getRows(), getCols());
 
-  if (!is_transpose() && !other.is_transpose()) // this - this
+  if (!isTranspose() && !other.isTranspose()) // this - this
     result.getEigenMap() = this->getEigenMap() - other.getEigenMap();
-  if (!is_transpose() && other.is_transpose()) // this - this^T
+  if (!isTranspose() && other.isTranspose()) // this - this^T
     result.getEigenMap() = this->getEigenMap() - other.getEigenMap().transpose();
-  if (is_transpose() && other.is_transpose()) // this^T - this^T
+  if (isTranspose() && other.isTranspose()) // this^T - this^T
     result.getEigenMap() = this->getEigenMap().transpose() - other.getEigenMap().transpose();
-  if (is_transpose() && !other.is_transpose()) // this^T - this
+  if (isTranspose() && !other.isTranspose()) // this^T - this
     result.getEigenMap() = this->getEigenMap().transpose() - other.getEigenMap();
 
   return result;
@@ -324,7 +385,7 @@ template <class scalar>
 denseMatrix<scalar> denseMatrix<scalar>::transpose()
 {
   denseMatrix<scalar> tmat(data_, rows_, cols_);
-  tmat.set_transpose();
+  tmat.setTranspose();
   return tmat;
 }
 
@@ -346,7 +407,7 @@ scalar denseMatrix<scalar>::getElem(int row, int col)
 template <class scalar>
 void denseMatrix<scalar>::setElem(scalar elem, int row, int col)
 {
-  if ((row >= rows()) || (col >= cols()) || (row < 0) || (col < 0))
+  if (((row + 1) > rows()) || ((col + 1) > cols()) || (row < 0) || (col < 0))
     throw invalidRange;
   else
     (*this)(row, col) = elem;
@@ -373,7 +434,7 @@ size_t denseMatrix<scalar>::size()
 template <class scalar>
 void denseMatrix<scalar>::print()
 {
-  if (!is_transpose())
+  if (!isTranspose())
     std::cout << "data =\n"
               << this->getEigenMap() << std::endl;
   else
