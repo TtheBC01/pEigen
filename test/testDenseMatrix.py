@@ -63,14 +63,14 @@ class DenseMatrixTest(unittest.TestCase):
     def test_dense_sparse_addition(self):
         dm = peigen.dense_matrix(100,100)
         dm.set_random(1)
-        sm = peigen.sparse_matrix(100,100,0)
+        sm = peigen.sparse_matrix(100,100)
         result = dm + sm
         self.assertEqual(result.norm(), dm.norm())
 
     def test_dense_sparse_subtraction(self):
         dm = peigen.dense_matrix(100,100)
         dm.set_random(1)
-        sm = peigen.sparse_matrix(100,100,0)
+        sm = peigen.sparse_matrix(100,100)
         result = dm - sm
         self.assertEqual(result.norm(), dm.norm())
         

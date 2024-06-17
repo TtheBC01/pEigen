@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.25)
 project(PEIGEN)
 
-# set C++ to version 14 and only use Eigen lib components that are MPL2 licenced
-set(CMAKE_CXX_STANDARD 14)
+# set C++ to version 23 and only use Eigen lib components that are MPL2 licenced
+set(CMAKE_CXX_STANDARD 23)
 set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DEIGEN_MPL2_ONLY")
 
 include_directories(./src ./eigen)
