@@ -20,43 +20,43 @@ import libpeigen as peigen
 
 rows = 20
 cols = 30
-denseMat = peigen.dense_matrix(rows, cols)
+dmat = peigen.dense_matrix(rows, cols)
 
 # set the element on the second row in the first column to 4
-denseMat.set_elem(4,1,0)
+dmat.set_elem(4,1,0)
 
 # you can get a single element like this
-myElement = denseMat.get_elem(1,0) # should be 4
+myElement = dmat.get_elem(1,0) # should be 4
 
 # initialize the whole matrix with random double precision floats with a seed value
 # if you use the same seed, you will get the same random matrix on the same machine
-denseMat.set_random(3)
+dmat.set_random(3)
 
-print("Number of Rows: ", denseMat.rows())
-print("Number of Cols: ", denseMat.cols())
-print("Matrix Norm: ", denseMat.norm())
+print("Number of Rows: ", dmat.rows())
+print("Number of Cols: ", dmat.cols())
+print("Matrix Norm: ", dmat.norm())
 
 # You can always call .show() on a matrix object to print the contents
 # in a pretty layout
-denseMat.transpose().show()
+dmat.transpose().show()
 
 # scalar multiplication
-denseMat *= 3.14
+dmat *= 3.14
 
 # matrix multiplication
-newDenseMat = peigen.dense_matrix(rows,cols)
-newDenseMat.assign(denseMat) # deep copy into new dense matrix object
-result = denseMat * newDenseMat.transpose() # result is a new dense matrix object
+new_dmat = peigen.dense_matrix(rows,cols)
+new_dmat.assign(dmat) # deep copy into new dense matrix object
+result = dmat * new_dmat.transpose() # result is a new dense matrix object
 
 # matrix addition
-result = denseMat + newDenseMat
+result = dmat + new_dmat
 # or
-denseMat += newDenseMat
+dmat += new_dmat
 
 # matrix subtraction
-result = denseMat - newDenseMat
+result = dmat - new_dmat
 # or
-denseMat -= newDenseMat
+dmat -= new_dmat
 ```
 
 You can also access arbitrary blocks of a dense matrix.
@@ -64,23 +64,23 @@ You can also access arbitrary blocks of a dense matrix.
 ```python
 startingRow = 5
 startingCol = 6
-numRows = 4
-numCols = 3
+num_rows = 4
+num_cols = 3
 
 # make a new matrix from a block of an existing matrix
-myBlock = denseMat.block(startingRow, startingCol, numRows, numCols)
+my_block = dmat.block(startingRow, startingCol, num_rows, num_cols)
 
 # or grab the (off)diagonals from a matrix
-myDiagonal = denseMat.diagonal(1) # returns the diagonal of a (potentially rectangular) offset by 1 in this case
+my_diagonal = dmat.diagonal(1) # returns the diagonal of a (potentially rectangular) offset by 1 in this case
 ```
 
 You can save a dense matrix to a file to use later.
 
 ```python
-denseMat.save("myMat.mat")
+dmat.save("myMat.mat")
 
-newDenseMat = peigen.dense_matrix()
-newDenseMat.load("myMat.mat")
+new_dmat = peigen.dense_matrix()
+new_dmat.load("myMat.mat")
 ```
 
 ### Sparse Matrices
@@ -95,37 +95,37 @@ import libpeigen as peigen
 rows = 1000
 cols = 2000
 
-sparseMat = peigen.sparse_matrix(rows,cols)
+smat = peigen.sparse_matrix(rows,cols)
 
-sparseMat.nnz() # will be 0 right after initialization
+smat.nnz() # will be 0 right after initialization
 
 # you can set individual elements like this
-sparseMat.set_elem(3.14, 499, 299) # now the element on the 500th row and 300th column is 3.14
+smat.set_elem(3.14, 499, 299) # now the element on the 500th row and 300th column is 3.14
 
 # get the number of rows, columns, and the matrix norm just like with dense matrices
-print("Number of Rows: ", sparseMat.rows())
-print("Number of Cols: ", sparseMat.cols())
-print("Matrix Norm: ", sparseMat.norm())
+print("Number of Rows: ", smat.rows())
+print("Number of Cols: ", smat.cols())
+print("Matrix Norm: ", smat.norm())
 
 # you can multiply two sparse matrices together
-newSparseMat = peigen.sparse_matrix()
-newSparseMat.assign(sparseMat)
-result = newSparseMat.transpose() * sparseMat
+new_smat = peigen.sparse_matrix()
+new_smat.assign(smat)
+result = new_smat.transpose() * smat
 
 # you can also multiply dense and sparse matrices together
-denseMat = peigen.dense_matrix(rows, cols)
-denseMat.set_random(1)
-result = denseMat.transpose() * sparseMat
-result = sparseMat.transpose() * denseMat
+dmat = peigen.dense_matrix(rows, cols)
+dmat.set_random(1)
+result = dmat.transpose() * smat
+result = smat.transpose() * dmat
 ```
 
 You can also save a sparse matrix to a file to use later.
 
 ```python
-sparseMat.save("myMat.mat")
+smat.save("myMat.mat")
 
-newSparseMat = peigen.dense_matrix()
-newSparseMat.load("myMat.mat")
+new_smat = peigen.dense_matrix()
+new_smat.load("myMat.mat")
 ```
 
 ## Factorizations
@@ -139,23 +139,23 @@ import libpeigen as peigen
 
 rows = 10
 cols = 20
-denseMat = peigen.dense_matrix(rows, cols)
-denseMat.set_random(1)
+dmat = peigen.dense_matrix(rows, cols)
+dmat.set_random(1)
 
 # initialize a factorizer object 
-factorizer = peigen.factorizer(denseMat)
+factorizer = peigen.factorizer(dmat)
 
-# compute the singular value decomposition with the Bidiagonal Divide and Conquer method
-factorizer.BDCSVD()
+# compute the singular value decomposition (USV^T) with the Bidiagonal Divide and Conquer method
+factorizer.bdcsvd()
 
-# get the singular values
-factorizer.getSingularValues().show()
+# get the singular values as a dense diagonal matrix
+factorizer.get_singular_values().show()
 
 # get the left singular vector matrix
-factorizer.getU().show()
+factorizer.get_u().show()
 
 # get the right singular vector matrix
-factorizer.getV().show()
+factorizer.get_v().show()
 ```
 
 ### QR Factorization
@@ -163,15 +163,15 @@ factorizer.getV().show()
 ```python
 rows = 10
 cols = 20
-denseMat = peigen.dense_matrix(rows, cols)
-denseMat.set_random(1)
+dmat = peigen.dense_matrix(rows, cols)
+dmat.set_random(1)
 
 # initialize a factorizer object 
-factorizer = peigen.factorizer(denseMat)
+factorizer = peigen.factorizer(dmat)
 
 # compute QR decomposition with the Householder method
-factorizer.HouseholderQR()
+factorizer.householder_qr()
 
 # get the Q matrix
-factorizer.getQ().show()
+factorizer.get_q().show()
 ```
