@@ -8,6 +8,11 @@ class DenseMatrixTest(unittest.TestCase):
         self.cols = 3000
         self.dense_matrix = peigen.dense_matrix(self.rows, self.cols)
         self.dense_matrix.set_random(1)
+
+    def test_list_initialization(self):
+        data = self.dense_matrix.to_list()
+        lhs = peigen.dense_matrix(data, self.rows, self.cols)
+        self.assertEqual(lhs.norm(), self.dense_matrix.norm())
         
     def test_rows(self):
         self.assertEqual(self.dense_matrix.rows(), self.rows)

@@ -51,6 +51,13 @@ class SparseMatrixTest(unittest.TestCase):
         lhs = peigen.sparse_matrix()
         lhs.assign(self.sparse_matrix)
         self.assertEqual(lhs.norm(), self.sparse_matrix.norm())
+
+    def test_list_initialization(self):
+        data = self.sparse_matrix.data_to_list()
+        outer = self.sparse_matrix.outer_to_list()
+        inner = self.sparse_matrix.inner_to_list()
+        lhs = peigen.sparse_matrix(data, outer, inner, self.rows, self.cols)
+        self.assertEqual(lhs.norm(), self.sparse_matrix.norm())
         
     def test_rows(self):
         self.assertEqual(self.sparse_matrix.rows(), self.rows)
