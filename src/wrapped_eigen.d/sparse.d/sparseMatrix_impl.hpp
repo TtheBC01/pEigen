@@ -44,18 +44,18 @@ sparseMatrix<scalar>::sparseMatrix(boost::python::list &dataList, boost::python:
     throw dimensionMismatch;
     
   for (int i = 0; i < boost::python::len(dataList); ++i)
-  {
     data_.push_back(boost::python::extract<scalar>(dataList[i]));
-  }
 
   for (int i = 0; i < boost::python::len(outerList); ++i)
-  {
-    outer_.push_back(boost::python::extract<scalar>(outerList[i]));
-  }
+    outer_.push_back(boost::python::extract<int>(outerList[i]));
 
   for (int i = 0; i < boost::python::len(innerList); ++i)
   {
-    inner_.push_back(boost::python::extract<scalar>(innerList[i]));
+    int newRow = boost::python::extract<int>(innerList[i]);
+    if (newRow >= rows)
+      throw invalidRange;
+      
+    inner_.push_back(newRow);
   }
 }
 
@@ -388,7 +388,7 @@ void sparseMatrix<scalar>::assign(const sparseMatrix &other)
 template <class scalar>
 void sparseMatrix<scalar>::setElem(scalar elem, int row, int col)
 {
-  if (((row + 1) >= rows()) || (row < 0) || ((col + 1) >= cols()) || (col < 0))
+  if ((row >= rows()) || (row < 0) || (col >= cols()) || (col < 0))
     throw invalidRange;
 
   // get nnz up to row before insertion row
@@ -429,7 +429,7 @@ void sparseMatrix<scalar>::setElem(scalar elem, int row, int col)
 template <class scalar>
 scalar sparseMatrix<scalar>::getElem(int row, int col)
 {
-  if (((row + 1) >= rows()) || (row < 0) || ((col + 1) >= cols()) || (col < 0))
+  if ((row >= rows()) || (row < 0) || (col >= cols()) || (col < 0))
     throw invalidRange;
 
   // get nnz up to row before insertion row

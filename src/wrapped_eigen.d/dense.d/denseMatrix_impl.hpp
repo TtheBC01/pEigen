@@ -34,11 +34,9 @@ denseMatrix<scalar>::denseMatrix(boost::python::list &dataList, int rows, int co
 {
   if (boost::python::len(dataList) != rows * cols)
     throw dimensionMismatch;
-    
+
   for (int i = 0; i < boost::python::len(dataList); ++i)
-  {
     data_.push_back(boost::python::extract<scalar>(dataList[i]));
-  }
 }
 
 template <class scalar>
@@ -90,7 +88,7 @@ boost::python::list denseMatrix<scalar>::toList()
 template <class scalar>
 denseMatrix<scalar> denseMatrix<scalar>::getRow(int row)
 {
-  if (((row + 1) > rows()) || (row < 0))
+  if ((row >= rows()) || (row < 0))
     throw invalidRange;
 
   denseMatrix newrow(1, cols_);
@@ -101,7 +99,7 @@ denseMatrix<scalar> denseMatrix<scalar>::getRow(int row)
 template <class scalar>
 denseMatrix<scalar> denseMatrix<scalar>::getCol(int col)
 {
-  if (((col + 1) > cols()) || (col < 0))
+  if ((col >= cols()) || (col < 0))
     throw invalidRange;
 
   denseMatrix column(rows_, 1);
@@ -147,7 +145,7 @@ denseMatrix<scalar> denseMatrix<scalar>::getDiagonal(int n)
 template <class scalar>
 denseMatrix<scalar> denseMatrix<scalar>::getBlock(int row, int col, int nrows, int ncols)
 {
-  if (((row + 1) > rows()) || ((col + 1) > cols()) || (row < 0) || (col < 0))
+  if ((row >= rows()) || (col >= cols()) || (row < 0) || (col < 0))
     throw invalidRange;
 
   denseMatrix block(nrows, ncols);
@@ -407,7 +405,7 @@ scalar denseMatrix<scalar>::getElem(int row, int col)
 template <class scalar>
 void denseMatrix<scalar>::setElem(scalar elem, int row, int col)
 {
-  if (((row + 1) > rows()) || ((col + 1) > cols()) || (row < 0) || (col < 0))
+  if ((row >= rows()) || (col >= cols()) || (row < 0) || (col < 0))
     throw invalidRange;
   else
     (*this)(row, col) = elem;
