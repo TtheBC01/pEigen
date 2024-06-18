@@ -97,8 +97,10 @@ public:
   denseMatrix &operator-=(const denseMatrix &other);
   denseMatrix &operator*=(const double a);
   denseMatrix operator*(const double a);
+  template<scalar> friend denseMatrix operator*(double a, denseMatrix<scalar>& other);
   denseMatrix operator+(const denseMatrix &other);
   denseMatrix operator-(const denseMatrix &other);
+  denseMatrix operator-();
   denseMatrix operator*(const denseMatrix &other);
   denseMatrix operator*(const sparseMatrix<scalar> &other);
   denseMatrix operator+(const sparseMatrix<scalar> &other);

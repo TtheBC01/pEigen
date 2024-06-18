@@ -92,6 +92,7 @@ public:
   sparseMatrix &operator-=(const sparseMatrix &other);
   sparseMatrix &operator*=(const double a);
   sparseMatrix operator*(const double a);
+  template<scalar> friend sparseMatrix operator*(double a, sparseMatrix<scalar>& other);
   sparseMatrix operator+(const sparseMatrix &other);
   sparseMatrix operator-(const sparseMatrix &other);
   sparseMatrix operator*(const sparseMatrix &other);

@@ -372,6 +372,15 @@ sparseMatrix<scalar> sparseMatrix<scalar>::operator*(const double a)
 }
 
 template <class scalar>
+sparseMatrix<scalar> operator*(double a, sparseMatrix<scalar>& other)
+{
+  sparseMatrix<scalar> result;
+  result = other;
+  result *= a;
+  return result;
+}
+
+template <class scalar>
 sparseMatrix<scalar> sparseMatrix<scalar>::transpose()
 {
   sparseMatrix<scalar> tmat(data_, outer_, inner_, rows_, cols_);

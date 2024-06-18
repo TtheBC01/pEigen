@@ -290,6 +290,12 @@ denseMatrix<scalar> denseMatrix<scalar>::operator-(const denseMatrix &other)
 }
 
 template <class scalar>
+denseMatrix<scalar> denseMatrix<scalar>::operator-()
+{
+  return (*this)*(-1);
+}
+
+template <class scalar>
 denseMatrix<scalar> denseMatrix<scalar>::operator*(const denseMatrix &other)
 {
   if (getCols() != other.getRows())
@@ -375,6 +381,15 @@ denseMatrix<scalar> denseMatrix<scalar>::operator*(const double a)
 {
   denseMatrix<scalar> result;
   result = *this;
+  result *= a;
+  return result;
+}
+
+template <class scalar>
+denseMatrix<scalar> operator*(double a, denseMatrix<scalar>& other)
+{
+  denseMatrix<scalar> result;
+  result = other;
   result *= a;
   return result;
 }

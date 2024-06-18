@@ -5,6 +5,14 @@ project(PEIGEN)
 set(CMAKE_CXX_STANDARD 23)
 set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DEIGEN_MPL2_ONLY")
 
+# Find OpenMP
+find_package(OpenMP REQUIRED)
+
+if(OpenMP_CXX_FOUND)
+    # Add OpenMP flags to the compiler
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+endif()
+
 include_directories(./src ./eigen)
 
 # require Python 3
