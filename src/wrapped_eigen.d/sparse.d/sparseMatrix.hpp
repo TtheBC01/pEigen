@@ -109,6 +109,7 @@ public:
   size_t size();
 
   void print();
+  std::string str();
   void printBlock(int startRow, int startCol, int rows, int cols);
 
   scalar norm();

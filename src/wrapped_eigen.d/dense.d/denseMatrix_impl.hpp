@@ -432,10 +432,17 @@ size_t denseMatrix<scalar>::size()
 template <class scalar>
 void denseMatrix<scalar>::print()
 {
+  std::cout << str();
+}
+
+template <class scalar>
+std::string denseMatrix<scalar>::str()
+{
+  std::stringstream ss;
   if (!isTranspose())
-    std::cout << "data =\n"
-              << this->getEigenMap() << std::endl;
+    ss << "[ " << this->getEigenMap() << " ]" << std::endl;
   else
-    std::cout << "data = \n"
-              << this->getEigenMap().transpose() << std::endl;
+    ss << "[ " << this->getEigenMap().transpose() << " ]" << std::endl;
+
+  return ss.str();
 }

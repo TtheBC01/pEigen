@@ -460,12 +460,19 @@ size_t sparseMatrix<scalar>::size()
 template <class scalar>
 void sparseMatrix<scalar>::print()
 {
+  std::cout << str(); 
+}
+
+template <class scalar>
+std::string sparseMatrix<scalar>::str()
+{
+  std::stringstream ss;
   if (!isTranspose())
-    std::cout << "data =\n"
-              << this->getEigenMap() << std::endl;
+    ss << this->getEigenMap() << std::endl;
   else
-    std::cout << "data = \n"
-              << this->getEigenMap().transpose() << std::endl;
+    ss << this->getEigenMap().transpose() << std::endl;
+
+  return ss.str();
 }
 
 template <class scalar>

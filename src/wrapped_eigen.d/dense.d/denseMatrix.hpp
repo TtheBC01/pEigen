@@ -5,6 +5,7 @@
 #include <fstream>
 #include <exception>
 #include <string>
+#include <sstream>
 
 #include <boost/python.hpp>
 #include <boost/archive/text_oarchive.hpp>
@@ -118,6 +119,7 @@ public:
   size_t size();
 
   void print();
+  std::string str();
 
 private:
   friend class boost::serialization::access;

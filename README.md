@@ -5,6 +5,10 @@ This project is a simple wrapper for the [Eigen Tux](https://eigen.tuxfamily.org
 well as matrix decomposition methods. Matrix compuatation (particularly factorization) using Eigen
 are usually *much* faster that other packages like numpy or scipy.
 
+Eigen has some of the fastest matrix decomposition implementations available (for CPUs). The pEigen package is
+just a thin wrapper that exposes this capability for python users. Compared to Numpy, pEigen is about 
+10 times smaller, and typically much faster for large factorizations like SVD and QR. 
+
 For information about building this project locally for contributing, see the [developer docs](/DEV.md).
 
 ## Examples
@@ -18,31 +22,43 @@ You can create dense matrices by specifying the number of rows and columns. Matr
 ```python
 import libpeigen as peigen
 
-rows = 20
-cols = 30
+rows = 2
+cols = 3
+
+# create a dense matrix with all zeros
 dmat = peigen.dense_matrix(rows, cols)
 
-# set the element on the second row in the first column to 4
-dmat.set_elem(4,1,0)
+# or initialize it with a list of numbers
+data = [1,2,3,4,5,6]
+dmat = peigen.dense_matrix(data, rows, cols)
 
-# you can get a single element like this
+# you can also set individual elements
+# this sets the second row, first column to 2.15
+dmat.set_elem(2.15,1,0)
+
+# you can retrieve a single element as number-type like this
 myElement = dmat.get_elem(1,0) # should be 4
 
 # initialize the whole matrix with random double precision floats with a seed value
 # if you use the same seed, you will get the same random matrix on the same machine
 dmat.set_random(3)
 
-# the [] operator will return a dense matrix object
+# the [] operator return a dense matrix object
 dmat[1].show() # this will return the second row as a dense matrix
-dmat[1][0].show() # this will return the element on the second row on the first column as a sense matrix
+dmat[1][0].show() # this will return the element on the second row on the first column as a dense matrix
+
+# you can get the number of elements in the matrix with the len() operator
+len(dmat) # should be 6
 
 print("Number of Rows: ", dmat.rows())
 print("Number of Cols: ", dmat.cols())
 print("Matrix Norm: ", dmat.norm())
 
-# You can always call .show() on a matrix object to print the contents
-# in a pretty layout
+# You can always call .show() on a matrix object to pretty-print the contents
 dmat.transpose().show()
+
+# Alternatively you can use the str() operator
+print(str(dmat.transpose()))
 
 # scalar multiplication
 dmat *= 3.14
@@ -101,7 +117,9 @@ cols = 2000
 
 smat = peigen.sparse_matrix(rows,cols)
 
+# get the number of non-zero elements
 smat.nnz() # will be 0 right after initialization
+len(smat) # does the same thing
 
 # you can set individual elements like this
 smat.set_elem(3.14, 499, 299) # now the element on the 500th row and 300th column is 3.14
