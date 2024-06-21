@@ -200,6 +200,9 @@ void denseMatrix<scalar>::setBlock(int i, int j, int k, int l, const denseMatrix
 template <class scalar>
 Eigen::Map<Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic>> denseMatrix<scalar>::getEigenMap()
 {
+  /*
+  NOTE: An Eigen::Map does not manage its own storage, this limits object interoperability
+  */
   Eigen::Map<Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic>> x(this->data(),
                                                                       rows_,
                                                                       cols_);
@@ -210,6 +213,9 @@ Eigen::Map<Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic>> denseMatrix<sc
 template <class scalar>
 Eigen::Map<const Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic>> denseMatrix<scalar>::getEigenMap() const
 {
+  /*
+  NOTE: An Eigen::Map does not manage its own storage, this limits object interoperability
+  */
   Eigen::Map<const Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic>> x(this->data(),
                                                                             rows_,
                                                                             cols_);
@@ -220,10 +226,17 @@ Eigen::Map<const Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic>> denseMat
 template <class scalar>
 denseMatrix<scalar> &denseMatrix<scalar>::operator=(const denseMatrix &other)
 {
-  rows_ = other.rows();
-  cols_ = other.cols();
-  data_ = other.container();
-  transpose_mat = other.isTranspose();
+  rows_ = other.getRows();
+  cols_ = other.getCols();
+  transpose_mat = false;
+  if (!other.isTranspose())
+  {
+    data_ = other.container();
+  } 
+  else
+  {
+    this->getEigenMap() = other.getEigenMap().transpose();
+  }
   return *this;
 }
 
@@ -292,7 +305,7 @@ denseMatrix<scalar> denseMatrix<scalar>::operator-(const denseMatrix &other)
 template <class scalar>
 denseMatrix<scalar> denseMatrix<scalar>::operator-()
 {
-  return (*this)*(-1);
+  return (*this) * (-1);
 }
 
 template <class scalar>
@@ -386,7 +399,7 @@ denseMatrix<scalar> denseMatrix<scalar>::operator*(const double a)
 }
 
 template <class scalar>
-denseMatrix<scalar> operator*(double a, denseMatrix<scalar>& other)
+denseMatrix<scalar> operator*(double a, denseMatrix<scalar> &other)
 {
   denseMatrix<scalar> result;
   result = other;

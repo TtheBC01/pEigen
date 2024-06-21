@@ -10,6 +10,12 @@ BOOST_PYTHON_MODULE(libpeigen)
 {
   using namespace boost::python;
 
+  /*
+  The denseMatrix and sparseMatrix classes are "thin" wrappers around the Eigen::Dense and Eigen::SparseMatrix classes. 
+  Rather than exposing Eigen classes directly with Boost Python, which is tricky due to the extensive use of 
+  polymorphism and function overloading within Eigen, pEigen stores matrix data in std::vector containers and maps them 
+  using Eigen::Map within the denseMatrix and sparseMatrix member functions when necessary. 
+  */
   typedef denseMatrix<double> dMDouble;
   typedef sparseMatrix<double> sMDouble;
 
@@ -86,8 +92,8 @@ BOOST_PYTHON_MODULE(libpeigen)
       .def(self - dMDouble())
       .def(self * self)
       .def(self * dMDouble())
-      .def("show", &sMDouble::print) // print() is a reserved syntax in python
       .def("__str__", &sMDouble::str)
+      .def("show", &sMDouble::print) // print() is a reserved syntax in python
       .def("show_block", &sMDouble::printBlock)
       .def("save", &sMDouble::save)
       .def("load", &sMDouble::load)

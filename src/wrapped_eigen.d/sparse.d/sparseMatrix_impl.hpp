@@ -42,7 +42,7 @@ sparseMatrix<scalar>::sparseMatrix(boost::python::list &dataList, boost::python:
 {
   if ((boost::python::len(dataList) > rows * cols) || (boost::python::len(outerList) != cols + 1) || (boost::python::len(dataList) != boost::python::len(innerList)))
     throw dimensionMismatch;
-    
+
   for (int i = 0; i < boost::python::len(dataList); ++i)
     data_.push_back(boost::python::extract<scalar>(dataList[i]));
 
@@ -54,7 +54,7 @@ sparseMatrix<scalar>::sparseMatrix(boost::python::list &dataList, boost::python:
     int newRow = boost::python::extract<int>(innerList[i]);
     if (newRow >= rows)
       throw invalidRange;
-      
+
     inner_.push_back(newRow);
   }
 }
@@ -164,6 +164,9 @@ sparseMatrix<scalar> sparseMatrix<scalar>::getCol(int col)
 template <class scalar>
 Eigen::Map<Eigen::SparseMatrix<scalar>> sparseMatrix<scalar>::getEigenMap()
 {
+  /*
+  NOTE: An Eigen::Map does not manage its own storage, this limits object interoperability
+  */
   Eigen::Map<Eigen::SparseMatrix<scalar>> sm(rows(), cols(), nnz(), outer_.data(), inner_.data(), data_.data());
 
   return sm;
@@ -172,6 +175,9 @@ Eigen::Map<Eigen::SparseMatrix<scalar>> sparseMatrix<scalar>::getEigenMap()
 template <class scalar>
 Eigen::Map<const Eigen::SparseMatrix<scalar>> sparseMatrix<scalar>::getEigenMap() const
 {
+  /*
+  NOTE: An Eigen::Map does not manage its own storage, this limits object interoperability
+  */
   Eigen::Map<const Eigen::SparseMatrix<scalar>> sm(rows_, cols_, nnz_, outer_.data(), inner_.data(), data_.data());
 
   return sm;
@@ -181,12 +187,25 @@ template <class scalar>
 sparseMatrix<scalar> &sparseMatrix<scalar>::operator=(const sparseMatrix &other)
 {
   nnz_ = other.nnz();
-  rows_ = other.rows();
-  cols_ = other.cols();
-  data_ = other.dataContainer();
-  inner_ = other.innerContainer();
-  outer_ = other.outerContainer();
-  transpose_mat = other.isTranspose();
+  rows_ = other.getRows();
+  cols_ = other.getCols();
+  transpose_mat = false;
+  if (!other.isTranspose())
+  {
+    data_ = other.dataContainer();
+    inner_ = other.innerContainer();
+    outer_ = other.outerContainer();
+    transpose_mat = other.isTranspose();
+  }
+  else
+  {
+    Eigen::SparseMatrix<scalar> result(getRows(), getRows());
+    result = other.getEigenMap().transpose();
+
+    for (int k = 0; k < result.outerSize(); ++k)
+    for (typename Eigen::SparseMatrix<scalar>::InnerIterator it(result, k); it; ++it)
+      setElem(it.value(), (isTranspose() ? it.col() : it.row()), (isTranspose() ? it.row() : it.col()));
+  }
   return *this;
 }
 
@@ -284,9 +303,9 @@ sparseMatrix<scalar> sparseMatrix<scalar>::operator*(const sparseMatrix &other)
   Eigen::SparseMatrix<scalar> result(getRows(), other.getCols());
   sparseMatrix<scalar> container(getRows(), other.getCols());
 
-  if (!isTranspose() && !other.isTranspose())                    // this * other
+  if (!isTranspose() && !other.isTranspose())                      // this * other
     result = (this->getEigenMap() * other.getEigenMap()).pruned(); // prune explicit zeros from the result
-  else if (!isTranspose() && other.isTranspose())                // this * other^T
+  else if (!isTranspose() && other.isTranspose())                  // this * other^T
     result = (this->getEigenMap() * other.getEigenMap().transpose()).pruned();
   else if (isTranspose() && other.isTranspose()) // this^T * other^T
     result = (this->getEigenMap().transpose() * other.getEigenMap().transpose()).pruned();
@@ -372,7 +391,7 @@ sparseMatrix<scalar> sparseMatrix<scalar>::operator*(const double a)
 }
 
 template <class scalar>
-sparseMatrix<scalar> operator*(double a, sparseMatrix<scalar>& other)
+sparseMatrix<scalar> operator*(double a, sparseMatrix<scalar> &other)
 {
   sparseMatrix<scalar> result;
   result = other;
@@ -469,7 +488,7 @@ size_t sparseMatrix<scalar>::size()
 template <class scalar>
 void sparseMatrix<scalar>::print()
 {
-  std::cout << str(); 
+  std::cout << str();
 }
 
 template <class scalar>
