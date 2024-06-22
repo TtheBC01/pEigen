@@ -78,9 +78,7 @@ boost::python::list denseMatrix<scalar>::toList()
   boost::python::list list;
   const std::vector<scalar> &vec = this->container();
   for (typename std::vector<scalar>::const_iterator iter = vec.begin(); iter != vec.end(); ++iter)
-  {
     list.append(*iter);
-  }
 
   return list;
 }
@@ -137,7 +135,7 @@ denseMatrix<scalar> denseMatrix<scalar>::getRowOrCol(int selector)
 template <class scalar>
 denseMatrix<scalar> denseMatrix<scalar>::getDiagonal(int n)
 {
-  denseMatrix diag(rows_, 1);
+  denseMatrix diag(rows(), 1);
   diag.getEigenMap() = this->getEigenMap().diagonal(n);
   return diag;
 }
@@ -156,7 +154,7 @@ denseMatrix<scalar> denseMatrix<scalar>::getBlock(int row, int col, int nrows, i
 template <class scalar>
 void denseMatrix<scalar>::setRow(int row, const denseMatrix &rmat)
 {
-  if ((rmat.rows() != 1) && (rmat.cols() != cols()))
+  if ((rmat.getRows() != 1) && (rmat.getCols() != cols()))
     throw dimensionMismatch;
 
   this->getEigenMap().row(row) = rmat.getEigenMap();
@@ -165,7 +163,7 @@ void denseMatrix<scalar>::setRow(int row, const denseMatrix &rmat)
 template <class scalar>
 void denseMatrix<scalar>::setCol(int col, const denseMatrix &cmat)
 {
-  if ((cmat.cols() != 1) && (cmat.rows() != rows()))
+  if ((cmat.getCols() != 1) && (cmat.getRows() != rows()))
     throw dimensionMismatch;
 
   this->getEigenMap().col(col) = cmat.getEigenMap();
@@ -175,11 +173,11 @@ template <class scalar>
 void denseMatrix<scalar>::setDiagonal(int d, const denseMatrix &dmat)
 {
   // first, dmat must be a vector
-  if ((dmat.cols() != 1) && (dmat.rows() != 1))
+  if (!((dmat.cols() == 1) || (dmat.rows() == 1)))
     throw dimensionMismatch;
 
   // second, the length of the diagonal must equal the length of dmat
-  if ((dmat.cols() != this->getEigenMap().diagonal(d).rows()) && (dmat.rows() != this->getEigenMap().diagonal(d).rows()))
+  if (dmat.rows()*dmat.cols() != this->getEigenMap().diagonal(d).rows())
     throw dimensionMismatch;
 
   this->getEigenMap().diagonal(d) = dmat.getEigenMap();
@@ -188,7 +186,7 @@ void denseMatrix<scalar>::setDiagonal(int d, const denseMatrix &dmat)
 template <class scalar>
 void denseMatrix<scalar>::setBlock(int i, int j, int k, int l, const denseMatrix &bmat)
 {
-  if (((i + 1) > rows()) || ((j + 1) > cols()) || (i < 0) || (j < 0))
+  if ((i >= rows()) || (j >= cols()) || (i < 0) || (j < 0))
     throw invalidRange;
 
   if ((k != bmat.rows()) && (l != bmat.cols()))
@@ -280,7 +278,6 @@ template <class scalar>
 denseMatrix<scalar> &denseMatrix<scalar>::operator*=(const double a)
 {
   this->getEigenMap() *= a;
-
   return *this;
 }
 

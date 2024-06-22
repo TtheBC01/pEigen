@@ -18,8 +18,8 @@ class factorizerTest(unittest.TestCase):
         norm_greater_than_0 = (S.diagonal(0).norm() > 0)
         U = self.factorizer.get_u()
         UtU = U.transpose()*U
-        trace = UtU.trace()
-        residual = (trace - UtU.rows())**2/(UtU.rows()**2)
+        trace = UtU.trace() # should be identity matrix
+        residual = (trace - UtU.rows())**2/(UtU.rows()**2) 
         res_less_than_eps = (residual < 1e-9)
         self.assertEqual(res_less_than_eps, True)
         self.assertEqual(norm_greater_than_0, True)
