@@ -1,51 +1,73 @@
-# Developing
+# Developing pEigen
 
-## Docker Environment
+## Prerequisites
 
-This repo comes with a Docker [definition](/Dockerfile) file to construct a ubuntu-based development environment that
-is guaranteed to compile. You don't need to install dependencies on you local environment, just install the
-[Docker engine](https://www.docker.com/) and build the pEigen environment:
+- Python 3.10+
+- CMake 3.18+
+- A C++17 compiler
+- Git submodules initialized (Eigen headers)
 
-```
-git clone https://github.com/TtheBC01/pEigen.git
-cd pEigen 
+## Setup
+
+```bash
+git clone https://github.com/<you>/pEigen.git
+cd pEigen
 git submodule update --init --recursive
-docker build -t peigen .
-docker run -it --rm --name peigen -v /path/to/pEigen/:/pEigen --entrypoint bash peigen
-```
-This will start an interactive shell session that comes with gcc, cmake, vim, eigen, and boost dev libraries. 
-
-## Building
-
-Once you are in the interactive Docker shell, build the python bindings like this:
-
-```
-pip install . --verbose
+python -m pip install --upgrade pip
+python -m pip install -e .[test]
 ```
 
-## Running Unit Tests
+## Running tests
 
-pEigen uses Python's [`unittest`](https://docs.python.org/3/library/unittest.html#module-unittest) package for unit testing. 
-Test cases are in the `/test` folder. You can run them with Python's built-in CLI:
-
-```shell
-python -m unittest test/testDenseMatrix.py
+```bash
+pytest --cov=peigen --cov-report=term-missing -m "not benchmark"
 ```
 
-## Extending exposed classes and methods
+Run full suite including slow tests:
 
-To expose a new object or method in the pEigen library, you must declare it in 
-[`/pEigen/src/python_bindings.d/peigen.cxx`](/src/python_bindings.d/peigen.cxx). Specifically, the 
-declaration must appear in the `BOOST_PYTHON_MODULE` block. See 
-[Boost.Python](https://www.boost.org/doc/libs/1_76_0/libs/python/doc/html/tutorial/tutorial/exposing.html) 
-documentation for more details about exposing classes and functions. Place new class definitions in the 
-[`/pEigen/src/wrapped_eigen.d/`](/src/wrapped_eigen.d) if you are wrapping a new Eigen object. 
-
-## PyPI
-
-To publish pEigen to the PyPI package repository, use [twine](https://twine.readthedocs.io/en/stable/):
-
+```bash
+pytest
 ```
+
+## Benchmarks (optional)
+
+Install optional dependencies:
+
+```bash
+python -m pip install -e .[benchmark,sparse]
+```
+
+Run benchmark scripts:
+
+```bash
+python benchmarks/bench_dense.py
+python benchmarks/bench_sparse.py
+# or
+scripts/bench_report.sh
+```
+
+## Build wheel locally
+
+```bash
+python -m pip install build
 python -m build
-python -m twine upload --repository testpypi dist/*
+```
+
+## CI/CD
+
+- PR and `main` branch testing is in `.github/workflows/ci.yml`.
+- Tagged releases (`v*`) trigger `.github/workflows/release.yml`:
+  - builds wheels (macOS arm64/x86_64 + Linux x86_64)
+  - builds sdist
+  - publishes to PyPI (Trusted Publishing)
+  - creates GitHub release
+
+## OpenMP
+
+OpenMP is best-effort and optional. Release wheels default to `PEIGEN_USE_OPENMP=OFF` for portability.
+
+For local experiments:
+
+```bash
+CMAKE_ARGS="-DPEIGEN_USE_OPENMP=ON" python -m pip install -e .
 ```

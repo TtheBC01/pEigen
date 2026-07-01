@@ -1,199 +1,211 @@
-# pEigen: Eigen for Python
+# pEigen
 
-This project is a simple wrapper for the [Eigen Tux](https://eigen.tuxfamily.org/) library using 
-[Boost.Python](https://github.com/boostorg/python). It exposes dense and sparse matrix objects as
-well as matrix decomposition methods. Matrix compuatation (particularly factorization) using Eigen
-are usually *much* faster that other packages like numpy or scipy.
+pEigen is a lightweight Python package that exposes Eigen-powered dense and sparse linear algebra routines using a NumPy/SciPy-native API.
 
-Eigen has some of the fastest matrix decomposition implementations available (for CPUs). The pEigen package is
-just a thin wrapper that exposes this capability for python users. Compared to Numpy, pEigen is about 
-10 times smaller, and typically much faster for large factorizations like SVD and QR. 
+## Highlights
 
-For information about building this project locally for contributing, see the [developer docs](/DEV.md).
+- `pybind11` bindings over Eigen kernels
+- Dense routines in `peigen.linalg`
+- Sparse routines in `peigen.sparse` (optional SciPy dependency)
+- Stateful decomposition helpers in `peigen.decomp`
+- Wheel-first distribution for macOS (arm64 + x86_64) and Linux
 
-## Examples
+## Installation
 
-Here are a few quick examples of how to use pEigen:
+Dense-only install:
 
-### Dense Matrices
-
-You can create dense matrices by specifying the number of rows and columns. Matrices are stored in column-major order (currently this is the only storage model).
-
-```python
-import libpeigen as peigen
-
-rows = 2
-cols = 3
-
-# create a dense matrix with all zeros
-dmat = peigen.dense_matrix(rows, cols)
-
-# or initialize it with a list of numbers
-data = [1,2,3,4,5,6]
-dmat = peigen.dense_matrix(data, rows, cols)
-
-# you can also set individual elements
-# this sets the second row, first column to 2.15
-dmat.set_elem(2.15,1,0)
-
-# you can retrieve a single element as number-type like this
-myElement = dmat.get_elem(1,0) # should be 4
-
-# initialize the whole matrix with random double precision floats with a seed value
-# if you use the same seed, you will get the same random matrix on the same machine
-dmat.set_random(3)
-
-# the [] operator return a dense matrix object
-dmat[1].show() # this will return the second row as a dense matrix
-dmat[1][0].show() # this will return the element on the second row on the first column as a dense matrix
-
-# you can get the number of elements in the matrix with the len() operator
-len(dmat) # should be 6
-
-print("Number of Rows: ", dmat.rows())
-print("Number of Cols: ", dmat.cols())
-print("Matrix Norm: ", dmat.norm())
-
-# You can always call .show() on a matrix object to pretty-print the contents
-dmat.transpose().show()
-
-# Alternatively you can use the str() operator
-print(str(dmat.transpose()))
-
-# scalar multiplication
-dmat *= 3.14
-
-# matrix multiplication
-new_dmat = peigen.dense_matrix(rows,cols)
-new_dmat.assign(dmat) # deep copy into new dense matrix object
-result = dmat * new_dmat.transpose() # result is a new dense matrix object
-
-# matrix addition
-result = dmat + new_dmat
-# or
-dmat += new_dmat
-
-# matrix subtraction
-result = dmat - new_dmat
-# or
-dmat -= new_dmat
+```bash
+pip install peigen
 ```
 
-You can also access arbitrary blocks of a dense matrix.
+Dense + sparse install:
 
-```python
-startingRow = 5
-startingCol = 6
-num_rows = 4
-num_cols = 3
-
-# make a new matrix from a block of an existing matrix
-my_block = dmat.block(startingRow, startingCol, num_rows, num_cols)
-
-# or grab the (off)diagonals from a matrix
-my_diagonal = dmat.diagonal(1) # returns the diagonal of a (potentially rectangular) offset by 1 in this case
+```bash
+pip install peigen[sparse]
 ```
 
-You can save a dense matrix to a file to use later.
+## Quick start
 
 ```python
-dmat.save("myMat.mat")
+import numpy as np
+from peigen import linalg, sparse, decomp
 
-new_dmat = peigen.dense_matrix()
-new_dmat.load("myMat.mat")
+A = np.random.randn(100, 100)
+B = np.random.randn(100, 40)
+
+C = linalg.matmul(A, B)
+X = linalg.solve(A + 10 * np.eye(100), B)
+Q, R = linalg.qr(A)
+U, s, Vt = linalg.svd(A)
+w, V = linalg.eigh(A + 10 * np.eye(100))
+
+svd = decomp.SVD(A)
+x_ls = svd.solve(np.random.randn(100))
 ```
 
-### Sparse Matrices
-
-Just like with dense matrices, you can create a sparse matrix by pre-specifying the number of rows and columns. Sparse matrices are stored
-in [compressed sparse column](https://docs.nvidia.com/nvpl/_static/sparse/storage_format/sparse_matrix.html#compressed-sparse-column-csc) (CSC) format. 
+Sparse example:
 
 ```python
-import libpeigen as peigen
+import scipy.sparse as sp
 
-# sparse matrices can be very large yet take up very little memory if the number of non-zero elements is small
-rows = 1000
-cols = 2000
+S = sp.random(200, 200, density=0.02, format="csc") + 5 * sp.eye(200, format="csc")
+rhs = np.random.randn(200, 8)
 
-smat = peigen.sparse_matrix(rows,cols)
-
-# get the number of non-zero elements
-smat.nnz() # will be 0 right after initialization
-len(smat) # does the same thing
-
-# you can set individual elements like this
-smat.set_elem(3.14, 499, 299) # now the element on the 500th row and 300th column is 3.14
-
-# get the number of rows, columns, and the matrix norm just like with dense matrices
-print("Number of Rows: ", smat.rows())
-print("Number of Cols: ", smat.cols())
-print("Matrix Norm: ", smat.norm())
-
-# you can multiply two sparse matrices together
-new_smat = peigen.sparse_matrix()
-new_smat.assign(smat)
-result = new_smat.transpose() * smat
-
-# you can also multiply dense and sparse matrices together
-dmat = peigen.dense_matrix(rows, cols)
-dmat.set_random(1)
-result = dmat.transpose() * smat
-result = smat.transpose() * dmat
+Y = sparse.spmm(S, rhs)
+x = sparse.solve(S, rhs, method="lu")
+fac = sparse.factorize(S)
+x2 = fac.solve(rhs)
 ```
 
-You can also save a sparse matrix to a file to use later.
+## API overview
+
+### `peigen.linalg`
+
+- `matmul(a, b)`
+- `solve(a, b, assume_a="gen", method="auto")`
+- `qr(a, mode="reduced")`
+- `svd(a, full_matrices=False, method="auto")`
+- `eigh(a, lower=True, eigenvectors=True, method="auto")`
+- `eighvals(a, lower=True, method="auto")`
+- `norm(a, ord=None, axis=None, keepdims=False)`
+
+#### Linear solve (`solve`)
+
+Solve `A x = b` for a square matrix `A`. Matches `numpy.linalg.solve` for general dense systems: `b` may be a 1D vector or a 2D array with multiple right-hand sides (columns of `x` correspond to columns of `b`).
 
 ```python
-smat.save("myMat.mat")
+# Single right-hand side (1D b returns 1D x)
+x = linalg.solve(A, b)
 
-new_smat = peigen.dense_matrix()
-new_smat.load("myMat.mat")
+# Multiple right-hand sides (2D b returns 2D x)
+X = linalg.solve(A, B)
+
+# Explicit backend selection
+x = linalg.solve(A, b, method="lapack")   # LAPACK dgesv
+x = linalg.solve(A, b, method="eigen")    # Eigen PartialPivLU
 ```
 
-## Factorizations
+| Parameter | Description |
+|-----------|-------------|
+| `assume_a="gen"` | General square matrix (only option today). Structured solvers (e.g. symmetric positive-definite) may be added later. |
+| `method="auto"` | Use LAPACK when compiled in (default on release wheels); otherwise Eigen. |
+| `method="lapack"` | Force LAPACK `dgesv` (LU factorization + pivoting, overwrites internal copies of `A` and `b` during the call). |
+| `method="eigen"` | Force Eigen `PartialPivLU`. |
 
-The pEigen package exposes SVD and QR decomposition from Eigen Tux.
+**Requirements and behavior:**
 
-### Singular Value Decomposition
+- `A` must be square; `b` must be 1D with length `n` or 2D with shape `(n, k)`.
+- Raises `ValueError` if dimensions mismatch or if `A` is singular / numerically ill-conditioned (LAPACK `info > 0` or near-zero LU diagonal).
+- Column-major staging for `A` is handled once inside the extension; callers do not need to pass Fortran-ordered arrays.
+
+On macOS and Linux release wheels with LAPACK linked, `method="auto"` typically matches or exceeds NumPy performance for moderate and large systems.
+
+#### QR decomposition
+
+Compute `A = Q @ R` for a dense matrix `A` using Eigen's Householder QR.
 
 ```python
-import libpeigen as peigen
-
-rows = 10
-cols = 20
-dmat = peigen.dense_matrix(rows, cols)
-dmat.set_random(1)
-
-# initialize a factorizer object 
-factorizer = peigen.factorizer(dmat)
-
-# compute the singular value decomposition (USV^T) with the Bidiagonal Divide and Conquer method
-factorizer.bdcsvd()
-
-# get the singular values as a dense diagonal matrix
-factorizer.get_singular_values().show()
-
-# get the left singular vector matrix
-factorizer.get_u().show()
-
-# get the right singular vector matrix
-factorizer.get_v().show()
+Q, R = linalg.qr(A)                    # reduced (economy) decomposition
+Q, R = linalg.qr(A, mode="complete")   # full Q
 ```
 
-### QR Factorization
+| Parameter | Description |
+|-----------|-------------|
+| `mode="reduced"` | Returns `Q` with shape `(m, min(m, n))` and upper-triangular `R` with shape `(min(m, n), n)`. Default; matches `numpy.linalg.qr(..., mode="reduced")`. |
+| `mode="complete"` | Returns full `Q` with shape `(m, m)`. |
+
+For tall-skinny matrices (`m > n`), reduced mode uses Eigen's thin-`Q` path (`householderQ() * I_{m×k}`) rather than forming a full `m×m` factor explicitly.
+
+#### Symmetric eigenproblems (`eigh`)
+
+Compute eigenvalues and optionally eigenvectors of a real symmetric matrix. These routines mirror `numpy.linalg.eigh` / `numpy.linalg.eigvalsh`.
 
 ```python
-rows = 10
-cols = 20
-dmat = peigen.dense_matrix(rows, cols)
-dmat.set_random(1)
+# Eigenvalues and orthonormal eigenvectors (columns of V)
+w, V = linalg.eigh(A)
 
-# initialize a factorizer object 
-factorizer = peigen.factorizer(dmat)
+# Eigenvalues only (faster when vectors are not needed)
+w = linalg.eighvals(A)
 
-# compute QR decomposition with the Householder method
-factorizer.householder_qr()
-
-# get the Q matrix
-factorizer.get_q().show()
+# Explicit backend selection
+w, V = linalg.eigh(A, method="lapack")   # LAPACK dsyevd
+w, V = linalg.eigh(A, method="eigen")    # Eigen SelfAdjointEigenSolver
 ```
+
+| Parameter | Description |
+|-----------|-------------|
+| `lower=True` | Use the lower triangle of `A` (LAPACK `uplo='L'`). Set `lower=False` to use the upper triangle instead. |
+| `eigenvectors=True` | Return `(w, V)`. Set `eigenvectors=False` to return only `w`. |
+| `method="auto"` | Use LAPACK when compiled in (default on release wheels); otherwise fall back to Eigen. |
+| `method="lapack"` | Force LAPACK `dsyevd` (divide-and-conquer). |
+| `method="eigen"` | Force Eigen's `SelfAdjointEigenSolver`. |
+
+`eighvals(a, ...)` is a convenience wrapper equivalent to `eigh(a, eigenvectors=False, ...)`.
+
+**Note:** Input matrices are treated as symmetric; only the selected triangle (`lower` or upper) is referenced, consistent with NumPy and LAPACK.
+
+#### Matrix norm (`norm`)
+
+The 2D default Frobenius fast path uses a zero-copy reduction over contiguous storage (BLAS-accelerated when BLAS is linked). Non-contiguous inputs are copied once in the extension. Other `ord` / `axis` combinations delegate to `numpy.linalg.norm`.
+
+```python
+n = linalg.norm(A)
+```
+
+### `peigen.sparse`
+
+- `spmm(a, b)`
+- `spspmm(a, b)`
+- `solve(a, b, method="auto", tol=1e-8, maxiter=None)`
+- `factorize(a, method="auto")`
+- `to_dense(a)`
+- `from_coo(data, row, col, shape)`
+
+### `peigen.decomp`
+
+- `SVD(a)`
+- `QR(a)`
+- `SparseFactorized(a)`
+
+## Runtime build report
+
+Check which performance backends were compiled into your installed wheel/extension:
+
+```python
+import peigen
+
+peigen.show_build_config()
+```
+
+Example output:
+
+```text
+pEigen build configuration
+--------------------------
+version:               2.0.0
+build_type:            Release
+blas_enabled:          True
+blas_backend:          accelerate
+lapack_enabled:        True
+lapack_backend:        accelerate
+openmp_enabled:        False
+vectorization_enabled: True
+eigen_mpl2_only:       True
+```
+
+You can also inspect the raw dictionary:
+
+```python
+cfg = peigen.build_config()
+print(cfg["blas_backend"])
+```
+
+From the command line:
+
+```bash
+python -c "import peigen; peigen.show_build_config()"
+```
+
+## Development
+
+See [DEV.md](DEV.md) for local build, test, benchmark, and release instructions.

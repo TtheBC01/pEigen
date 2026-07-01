@@ -1,3 +1,56 @@
 [build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
+requires = [
+  "scikit-build-core>=0.10",
+  "pybind11>=3.0.0",
+  "numpy>=1.23",
+]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "peigen"
+version = "2.0.0"
+description = "Eigen-powered linear algebra routines for NumPy/SciPy"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Todd Chapman" }]
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.23"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: C++",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
+]
+
+[project.optional-dependencies]
+sparse = ["scipy>=1.10"]
+test = [
+  "pytest>=8.0",
+  "pytest-cov>=5.0",
+  "scipy>=1.10",
+]
+benchmark = [
+  "pytest-benchmark>=4.0",
+  "scipy>=1.10",
+]
+
+[tool.scikit-build]
+wheel.packages = ["python/peigen"]
+cmake.source-dir = "."
+build-dir = "build/{wheel_tag}"
+
+[tool.scikit-build.cmake.define]
+PEIGEN_USE_OPENMP = "OFF"
+PEIGEN_USE_BLAS = "ON"
+PEIGEN_USE_LAPACK = "ON"
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers"
+testpaths = ["tests"]
+markers = [
+  "slow: longer-running tests",
+  "benchmark: performance benchmarks",
+  "sparse: requires scipy",
+]
