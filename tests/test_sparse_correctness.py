@@ -47,6 +47,33 @@ def test_sparse_solve_cg_respects_tol_maxiter():
     assert resid < 1e-7
 
 
+@pytest.mark.parametrize("preconditioner", ["none", "jacobi", "ilu"])
+@pytest.mark.sparse
+def test_sparse_solve_cg_preconditioners(preconditioner):
+    rng = np.random.default_rng(17)
+    base = sp.random(40, 40, density=0.06, format="csc", random_state=17)
+    a = (base.T @ base) + 5.0 * sp.eye(40, format="csc")
+    b = rng.standard_normal(40)
+
+    solve_kwargs = {
+        "method": "cg",
+        "tol": 1e-8,
+        "maxiter": 4000,
+        "preconditioner": preconditioner,
+    }
+    if preconditioner == "ilu":
+        solve_kwargs["ilu_fill_factor"] = 40
+        solve_kwargs["ilu_drop_tol"] = 1e-4
+
+    x = sparse.solve(a, b, **solve_kwargs)
+    resid = np.linalg.norm(a @ x - b) / np.linalg.norm(b)
+    assert resid < 1e-6
+
+    stats = sparse.solve_stats(a, b, **solve_kwargs)
+    assert stats["iterations"] >= 0
+    assert stats["error"] >= 0.0
+
+
 @pytest.mark.sparse
 def test_sparse_solve_bicgstab_respects_tol_maxiter():
     rng = np.random.default_rng(16)

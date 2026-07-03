@@ -57,3 +57,11 @@ def test_sparse_solve_invalid_method():
     b = np.ones((4, 1))
     with pytest.raises(ValueError):
         sparse.solve(a, b, method="unsupported")
+
+
+def test_sparse_solve_preconditioner_requires_cg():
+    scipy = pytest.importorskip("scipy.sparse")
+    a = scipy.eye(4, format="csc")
+    b = np.ones((4, 1))
+    with pytest.raises(ValueError):
+        sparse.solve(a, b, method="lu", preconditioner="jacobi")

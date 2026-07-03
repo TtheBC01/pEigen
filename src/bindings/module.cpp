@@ -17,7 +17,18 @@
 #include <Eigen/SparseLU>
 
 #if defined(PEIGEN_LAPACK_ENABLED)
-#include <Eigen/src/misc/lapacke.h>
+#include <lapack/lapack.h>
+
+using lapack_int = int;
+
+// Not declared in Eigen's bundled lapack.h (used for divide-and-conquer / MRRR paths).
+extern "C" {
+EIGEN_LAPACK_API void BLASFUNC(dsyevd)(const char *, const char *, int *, double *, int *, double *, double *, int *,
+                                       int *, int *, int *);
+EIGEN_LAPACK_API void BLASFUNC(dsyevr)(const char *, const char *, const char *, int *, double *, int *,
+                                       double *, double *, int *, int *, double *, int *, double *, double *, int *,
+                                       int *, double *, int *, int *, int *, int *);
+}
 #endif
 
 namespace py = pybind11;
@@ -164,9 +175,19 @@ static std::string resolve_svd_method(const std::string &method) {
 }
 
 static SvdFactors compute_svd_bdcsvd(const ColMatrix &matrix, bool full_matrices) {
-  const unsigned flags = full_matrices ? (Eigen::ComputeFullU | Eigen::ComputeFullV)
-                                       : (Eigen::ComputeThinU | Eigen::ComputeThinV);
-  Eigen::BDCSVD<ColMatrix> svd(matrix, flags);
+  if (full_matrices) {
+    Eigen::BDCSVD<ColMatrix, Eigen::ComputeFullU | Eigen::ComputeFullV> svd(matrix);
+    if (svd.info() != Eigen::Success) {
+      throw std::runtime_error("BDCSVD failed");
+    }
+    SvdFactors out;
+    out.u = svd.matrixU();
+    out.s = svd.singularValues();
+    out.vt = svd.matrixV().adjoint();
+    return out;
+  }
+
+  Eigen::BDCSVD<ColMatrix, Eigen::ComputeThinU | Eigen::ComputeThinV> svd(matrix);
   if (svd.info() != Eigen::Success) {
     throw std::runtime_error("BDCSVD failed");
   }
@@ -201,19 +222,19 @@ static SvdFactors compute_svd_lapack(ColMatrix matrix, bool full_matrices) {
   lapack_int info = 0;
   std::vector<lapack_int> iwork(static_cast<std::size_t>(8) * static_cast<std::size_t>(k));
 
-  LAPACK_dgesdd(&jobz, &m, &n, matrix.data(), &lda, out.s.data(), out.u.data(), &ldu, vt.data(), &ldvt,
-                &work_query, &lwork, iwork.data(), &info);
+  BLASFUNC(dgesdd)(&jobz, &m, &n, matrix.data(), &lda, out.s.data(), out.u.data(), &ldu, vt.data(), &ldvt,
+                   &work_query, &lwork, iwork.data(), &info);
   if (info != 0) {
-    throw std::runtime_error("LAPACK_dgesdd workspace query failed with info=" + std::to_string(info));
+    throw std::runtime_error("LAPACK dgesdd workspace query failed with info=" + std::to_string(info));
   }
 
   lwork = static_cast<lapack_int>(work_query);
   std::vector<double> work(static_cast<std::size_t>(lwork));
 
-  LAPACK_dgesdd(&jobz, &m, &n, matrix.data(), &lda, out.s.data(), out.u.data(), &ldu, vt.data(), &ldvt,
-                work.data(), &lwork, iwork.data(), &info);
+  BLASFUNC(dgesdd)(&jobz, &m, &n, matrix.data(), &lda, out.s.data(), out.u.data(), &ldu, vt.data(), &ldvt,
+                   work.data(), &lwork, iwork.data(), &info);
   if (info != 0) {
-    throw std::runtime_error("LAPACK_dgesdd failed with info=" + std::to_string(info));
+    throw std::runtime_error("LAPACK dgesdd failed with info=" + std::to_string(info));
   }
 
   out.vt = vt;
@@ -314,17 +335,17 @@ static void lapack_dsyev_values(ColMatrix &matrix, bool lower, Eigen::VectorXd &
   lapack_int info = 0;
   double work_query = 0.0;
 
-  LAPACK_dsyev(&jobz, &uplo, &n, matrix.data(), &lda, w.data(), &work_query, &lwork, &info);
+  BLASFUNC(dsyev)(&jobz, &uplo, &n, matrix.data(), &lda, w.data(), &work_query, &lwork, &info);
   if (info != 0) {
-    throw std::runtime_error("LAPACK_dsyev workspace query failed with info=" + std::to_string(info));
+    throw std::runtime_error("LAPACK dsyev workspace query failed with info=" + std::to_string(info));
   }
 
   lwork = static_cast<lapack_int>(work_query);
   std::vector<double> work(static_cast<std::size_t>(lwork));
 
-  LAPACK_dsyev(&jobz, &uplo, &n, matrix.data(), &lda, w.data(), work.data(), &lwork, &info);
+  BLASFUNC(dsyev)(&jobz, &uplo, &n, matrix.data(), &lda, w.data(), work.data(), &lwork, &info);
   if (info != 0) {
-    throw std::runtime_error("LAPACK_dsyev failed with info=" + std::to_string(info));
+    throw std::runtime_error("LAPACK dsyev failed with info=" + std::to_string(info));
   }
 }
 
@@ -347,8 +368,8 @@ static bool lapack_dsyevr_values(ColMatrix &matrix, bool lower, Eigen::VectorXd 
   double work_query = 0.0;
   lapack_int iwork_query = 0;
 
-  LAPACK_dsyevr(&jobz, &range, &uplo, &n, matrix.data(), &lda, &vl, &vu, &il, &iu, &abstol, &m, w.data(),
-                nullptr, &ldz, nullptr, &work_query, &lwork, &iwork_query, &liwork, &info);
+  BLASFUNC(dsyevr)(&jobz, &range, &uplo, &n, matrix.data(), &lda, &vl, &vu, &il, &iu, &abstol, &m, w.data(),
+                   nullptr, &ldz, nullptr, &work_query, &lwork, &iwork_query, &liwork, &info);
   if (info != 0) {
     return false;
   }
@@ -358,8 +379,8 @@ static bool lapack_dsyevr_values(ColMatrix &matrix, bool lower, Eigen::VectorXd 
   std::vector<double> work(static_cast<std::size_t>(lwork));
   std::vector<lapack_int> iwork(static_cast<std::size_t>(liwork));
 
-  LAPACK_dsyevr(&jobz, &range, &uplo, &n, matrix.data(), &lda, &vl, &vu, &il, &iu, &abstol, &m, w.data(),
-                nullptr, &ldz, nullptr, work.data(), &lwork, iwork.data(), &liwork, &info);
+  BLASFUNC(dsyevr)(&jobz, &range, &uplo, &n, matrix.data(), &lda, &vl, &vu, &il, &iu, &abstol, &m, w.data(),
+                   nullptr, &ldz, nullptr, work.data(), &lwork, iwork.data(), &liwork, &info);
   if (info != 0 || m != n) {
     return false;
   }
@@ -403,10 +424,10 @@ static EighFactors compute_eigh_lapack(ColMatrix matrix, bool lower, bool eigenv
   EighFactors out;
   out.w = Eigen::VectorXd::Zero(n);
 
-  LAPACK_dsyevd(&jobz, &uplo, &n, matrix.data(), &lda, out.w.data(), &work_query, &lwork, &iwork_query,
-                &liwork, &info);
+  BLASFUNC(dsyevd)(&jobz, &uplo, &n, matrix.data(), &lda, out.w.data(), &work_query, &lwork, &iwork_query,
+                   &liwork, &info);
   if (info != 0) {
-    throw std::runtime_error("LAPACK_dsyevd workspace query failed with info=" + std::to_string(info));
+    throw std::runtime_error("LAPACK dsyevd workspace query failed with info=" + std::to_string(info));
   }
 
   lwork = static_cast<lapack_int>(work_query);
@@ -414,10 +435,10 @@ static EighFactors compute_eigh_lapack(ColMatrix matrix, bool lower, bool eigenv
   std::vector<double> work(static_cast<std::size_t>(lwork));
   std::vector<lapack_int> iwork(static_cast<std::size_t>(liwork));
 
-  LAPACK_dsyevd(&jobz, &uplo, &n, matrix.data(), &lda, out.w.data(), work.data(), &lwork, iwork.data(), &liwork,
-                &info);
+  BLASFUNC(dsyevd)(&jobz, &uplo, &n, matrix.data(), &lda, out.w.data(), work.data(), &lwork, iwork.data(), &liwork,
+                   &info);
   if (info != 0) {
-    throw std::runtime_error("LAPACK_dsyevd failed with info=" + std::to_string(info));
+    throw std::runtime_error("LAPACK dsyevd failed with info=" + std::to_string(info));
   }
 
   out.v = std::move(matrix);
@@ -521,7 +542,7 @@ static py::array_t<double> solve_lapack(ColMatrix lhs, ColMatrix rhs) {
   lapack_int info = 0;
   std::vector<lapack_int> ipiv(static_cast<std::size_t>(n));
 
-  LAPACK_dgesv(&n, &nrhs, lhs.data(), &lda, ipiv.data(), rhs.data(), &ldb, &info);
+  BLASFUNC(dgesv)(&n, &nrhs, lhs.data(), &lda, ipiv.data(), rhs.data(), &ldb, &info);
   if (info != 0) {
     throw py::value_error("matrix is singular or ill-conditioned");
   }
@@ -693,11 +714,166 @@ static py::object core_spspmm(py::object a, py::object b) {
   return to_scipy_csc(out);
 }
 
+template <typename Preconditioner>
+static void run_conjugate_gradient(const Sparse &mat,
+                                   const Eigen::Ref<const RowMatrix> &rhs,
+                                   Eigen::Map<RowMatrix> &out,
+                                   double effective_tol,
+                                   int effective_maxiter) {
+  Eigen::ConjugateGradient<Sparse, Eigen::Lower | Eigen::Upper, Preconditioner> cg;
+  cg.setTolerance(effective_tol);
+  cg.setMaxIterations(effective_maxiter);
+  cg.compute(mat);
+  if (cg.info() != Eigen::Success) {
+    throw std::runtime_error("ConjugateGradient setup failed");
+  }
+  for (int col = 0; col < rhs.cols(); ++col) {
+    out.col(col) = cg.solve(rhs.col(col));
+    if (cg.info() != Eigen::Success) {
+      throw std::runtime_error(
+          "ConjugateGradient did not converge (iters=" + std::to_string(cg.iterations()) +
+          ", error=" + std::to_string(cg.error()) + ")");
+    }
+  }
+}
+
+template <typename Preconditioner>
+static std::pair<int, double> conjugate_gradient_stats(const Sparse &mat,
+                                                       const Eigen::VectorXd &rhs,
+                                                       double effective_tol,
+                                                       int effective_maxiter) {
+  Eigen::ConjugateGradient<Sparse, Eigen::Lower | Eigen::Upper, Preconditioner> cg;
+  cg.setTolerance(effective_tol);
+  cg.setMaxIterations(effective_maxiter);
+  cg.compute(mat);
+  if (cg.info() != Eigen::Success) {
+    throw std::runtime_error("ConjugateGradient setup failed");
+  }
+  Eigen::VectorXd x = cg.solve(rhs);
+  if (cg.info() != Eigen::Success) {
+    throw std::runtime_error(
+        "ConjugateGradient did not converge (iters=" + std::to_string(cg.iterations()) +
+        ", error=" + std::to_string(cg.error()) + ")");
+  }
+  (void)x;
+  return {static_cast<int>(cg.iterations()), cg.error()};
+}
+
+static void run_conjugate_gradient_ilu(const Sparse &mat,
+                                       const Eigen::Ref<const RowMatrix> &rhs,
+                                       Eigen::Map<RowMatrix> &out,
+                                       double effective_tol,
+                                       int effective_maxiter,
+                                       int ilu_fill_factor,
+                                       double ilu_drop_tol) {
+  Eigen::ConjugateGradient<Sparse, Eigen::Lower | Eigen::Upper, Eigen::IncompleteLUT<double> > cg;
+  cg.preconditioner().setFillfactor(ilu_fill_factor);
+  cg.preconditioner().setDroptol(ilu_drop_tol);
+  cg.setTolerance(effective_tol);
+  cg.setMaxIterations(effective_maxiter);
+  cg.compute(mat);
+  if (cg.info() != Eigen::Success) {
+    throw std::runtime_error("ConjugateGradient setup failed");
+  }
+  for (int col = 0; col < rhs.cols(); ++col) {
+    out.col(col) = cg.solve(rhs.col(col));
+    if (cg.info() != Eigen::Success) {
+      throw std::runtime_error(
+          "ConjugateGradient did not converge (iters=" + std::to_string(cg.iterations()) +
+          ", error=" + std::to_string(cg.error()) + ")");
+    }
+  }
+}
+
+static std::pair<int, double> conjugate_gradient_ilu_stats(const Sparse &mat,
+                                                           const Eigen::VectorXd &rhs,
+                                                           double effective_tol,
+                                                           int effective_maxiter,
+                                                           int ilu_fill_factor,
+                                                           double ilu_drop_tol) {
+  Eigen::ConjugateGradient<Sparse, Eigen::Lower | Eigen::Upper, Eigen::IncompleteLUT<double> > cg;
+  cg.preconditioner().setFillfactor(ilu_fill_factor);
+  cg.preconditioner().setDroptol(ilu_drop_tol);
+  cg.setTolerance(effective_tol);
+  cg.setMaxIterations(effective_maxiter);
+  cg.compute(mat);
+  if (cg.info() != Eigen::Success) {
+    throw std::runtime_error("ConjugateGradient setup failed");
+  }
+  Eigen::VectorXd x = cg.solve(rhs);
+  if (cg.info() != Eigen::Success) {
+    throw std::runtime_error(
+        "ConjugateGradient did not converge (iters=" + std::to_string(cg.iterations()) +
+        ", error=" + std::to_string(cg.error()) + ")");
+  }
+  (void)x;
+  return {static_cast<int>(cg.iterations()), cg.error()};
+}
+
+static void dispatch_conjugate_gradient(const Sparse &mat,
+                                        const Eigen::Ref<const RowMatrix> &rhs,
+                                        Eigen::Map<RowMatrix> &out,
+                                        const std::string &preconditioner,
+                                        double effective_tol,
+                                        int effective_maxiter,
+                                        int ilu_fill_factor,
+                                        double ilu_drop_tol) {
+  if (preconditioner == "none") {
+    run_conjugate_gradient<Eigen::IdentityPreconditioner>(mat, rhs, out, effective_tol,
+                                                          effective_maxiter);
+  } else if (preconditioner == "jacobi") {
+    run_conjugate_gradient<Eigen::DiagonalPreconditioner<double> >(mat, rhs, out, effective_tol,
+                                                                   effective_maxiter);
+  } else if (preconditioner == "ilu") {
+    if (ilu_fill_factor <= 0) {
+      throw py::value_error("ilu_fill_factor must be positive when preconditioner='ilu'");
+    }
+    if (ilu_drop_tol < 0.0) {
+      throw py::value_error("ilu_drop_tol must be non-negative when preconditioner='ilu'");
+    }
+    run_conjugate_gradient_ilu(mat, rhs, out, effective_tol, effective_maxiter, ilu_fill_factor,
+                               ilu_drop_tol);
+  } else {
+    throw py::value_error("preconditioner must be one of: none, jacobi, ilu");
+  }
+}
+
+static std::pair<int, double> dispatch_conjugate_gradient_stats(const Sparse &mat,
+                                                                const Eigen::VectorXd &rhs,
+                                                                const std::string &preconditioner,
+                                                                double effective_tol,
+                                                                int effective_maxiter,
+                                                                int ilu_fill_factor,
+                                                                double ilu_drop_tol) {
+  if (preconditioner == "none") {
+    return conjugate_gradient_stats<Eigen::IdentityPreconditioner>(mat, rhs, effective_tol,
+                                                                 effective_maxiter);
+  }
+  if (preconditioner == "jacobi") {
+    return conjugate_gradient_stats<Eigen::DiagonalPreconditioner<double> >(mat, rhs, effective_tol,
+                                                                           effective_maxiter);
+  }
+  if (preconditioner == "ilu") {
+    if (ilu_fill_factor <= 0) {
+      throw py::value_error("ilu_fill_factor must be positive when preconditioner='ilu'");
+    }
+    if (ilu_drop_tol < 0.0) {
+      throw py::value_error("ilu_drop_tol must be non-negative when preconditioner='ilu'");
+    }
+    return conjugate_gradient_ilu_stats(mat, rhs, effective_tol, effective_maxiter, ilu_fill_factor,
+                                        ilu_drop_tol);
+  }
+  throw py::value_error("preconditioner must be one of: none, jacobi, ilu");
+}
+
 static py::array_t<double> core_sparse_solve(py::object a,
                                               const py::array_t<double, py::array::forcecast> &b,
                                               const std::string &method,
                                               double tol,
-                                              int maxiter) {
+                                              int maxiter,
+                                              const std::string &preconditioner,
+                                              int ilu_fill_factor,
+                                              double ilu_drop_tol) {
   SparseCscView sparse = map_sparse_csc(a, true);
   std::unique_ptr<RowMatrix> owned_b;
   const Eigen::Ref<const RowMatrix> rhs = dense_row_ref(b, "b", owned_b);
@@ -714,6 +890,10 @@ static py::array_t<double> core_sparse_solve(py::object a,
 
   const int effective_maxiter = maxiter > 0 ? maxiter : static_cast<int>(sparse.mat.rows() * 2);
   const double effective_tol = tol > 0.0 ? tol : 1e-8;
+
+  if (method != "cg" && preconditioner != "none") {
+    throw py::value_error("preconditioner is only supported for method='cg'");
+  }
 
   if (method == "auto" || method == "lu") {
     Eigen::SparseLU<Sparse> lu;
@@ -732,21 +912,8 @@ static py::array_t<double> core_sparse_solve(py::object a,
   }
 
   if (method == "cg") {
-    Eigen::ConjugateGradient<Sparse, Eigen::Lower | Eigen::Upper> cg;
-    cg.setTolerance(effective_tol);
-    cg.setMaxIterations(effective_maxiter);
-    cg.compute(sparse.mat);
-    if (cg.info() != Eigen::Success) {
-      throw std::runtime_error("ConjugateGradient setup failed");
-    }
-    for (int col = 0; col < rhs.cols(); ++col) {
-      out.col(col) = cg.solve(rhs.col(col));
-      if (cg.info() != Eigen::Success) {
-        throw std::runtime_error(
-            "ConjugateGradient did not converge (iters=" + std::to_string(cg.iterations()) +
-            ", error=" + std::to_string(cg.error()) + ")");
-      }
-    }
+    dispatch_conjugate_gradient(sparse.mat, rhs, out, preconditioner, effective_tol, effective_maxiter,
+                                ilu_fill_factor, ilu_drop_tol);
     return out_arr;
   }
 
@@ -770,6 +937,45 @@ static py::array_t<double> core_sparse_solve(py::object a,
   }
 
   throw py::value_error("method must be one of: auto, lu, cg, bicgstab");
+}
+
+static py::dict core_sparse_solve_stats(py::object a,
+                                        const py::array_t<double, py::array::forcecast> &b,
+                                        const std::string &method,
+                                        double tol,
+                                        int maxiter,
+                                        const std::string &preconditioner,
+                                        int ilu_fill_factor,
+                                        double ilu_drop_tol) {
+  if (method != "cg") {
+    throw py::value_error("solve_stats is only supported for method='cg'");
+  }
+
+  SparseCscView sparse = map_sparse_csc(a, true);
+  std::unique_ptr<RowMatrix> owned_b;
+  const Eigen::Ref<const RowMatrix> rhs = dense_row_ref(b, "b", owned_b);
+
+  if (sparse.mat.rows() != sparse.mat.cols()) {
+    throw py::value_error("sparse solve requires square matrix");
+  }
+  if (rhs.rows() != sparse.mat.rows()) {
+    throw py::value_error("sparse solve shape mismatch");
+  }
+  if (rhs.cols() != 1) {
+    throw py::value_error("solve_stats requires a single RHS column");
+  }
+
+  const int effective_maxiter = maxiter > 0 ? maxiter : static_cast<int>(sparse.mat.rows() * 2);
+  const double effective_tol = tol > 0.0 ? tol : 1e-8;
+
+  const auto stats = dispatch_conjugate_gradient_stats(
+      sparse.mat, rhs.col(0), preconditioner, effective_tol, effective_maxiter, ilu_fill_factor,
+      ilu_drop_tol);
+
+  py::dict out;
+  out["iterations"] = stats.first;
+  out["error"] = stats.second;
+  return out;
 }
 
 static std::shared_ptr<SparseFactorized> core_sparse_factorize(py::object a) {
@@ -834,7 +1040,19 @@ PYBIND11_MODULE(_core, m) {
         py::arg("b"),
         py::arg("method") = "auto",
         py::arg("tol") = 1e-8,
-        py::arg("maxiter") = 0);
+        py::arg("maxiter") = 0,
+        py::arg("preconditioner") = "none",
+        py::arg("ilu_fill_factor") = 10,
+        py::arg("ilu_drop_tol") = 1e-4);
+  m.def("sparse_solve_stats", &core_sparse_solve_stats,
+        py::arg("a"),
+        py::arg("b"),
+        py::arg("method") = "cg",
+        py::arg("tol") = 1e-8,
+        py::arg("maxiter") = 0,
+        py::arg("preconditioner") = "none",
+        py::arg("ilu_fill_factor") = 10,
+        py::arg("ilu_drop_tol") = 1e-4);
   m.def("sparse_factorize", &core_sparse_factorize, py::arg("a"));
   m.def("build_config", &core_build_config);
 }

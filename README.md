@@ -48,12 +48,16 @@ Sparse example:
 ```python
 import scipy.sparse as sp
 
-S = sp.random(200, 200, density=0.02, format="csc") + 5 * sp.eye(200, format="csc")
+K = sp.random(200, 200, density=0.02, format="csc") + 5 * sp.eye(200, format="csc")
+M = sp.diags(np.full(200, 0.1), format="csc")
 rhs = np.random.randn(200, 8)
+b = np.random.randn(200)
 
-Y = sparse.spmm(S, rhs)
-x = sparse.solve(S, rhs, method="lu")
-fac = sparse.factorize(S)
+Y = sparse.spmm(K, rhs)                              # sparse @ dense
+C = sparse.spspmm(K, M)                              # sparse @ sparse
+x = sparse.solve(K, b, method="cg", preconditioner="jacobi")
+x = sparse.solve(K, rhs, method="lu")                # direct LU
+fac = sparse.factorize(K)
 x2 = fac.solve(rhs)
 ```
 
@@ -154,12 +158,136 @@ n = linalg.norm(A)
 
 ### `peigen.sparse`
 
+Requires SciPy (`pip install peigen[sparse]`). Sparse matrices are accepted in SciPy format; inputs are converted to CSC internally when needed.
+
 - `spmm(a, b)`
 - `spspmm(a, b)`
-- `solve(a, b, method="auto", tol=1e-8, maxiter=None)`
-- `factorize(a, method="auto")`
+- `solve(a, b, method="auto", tol=1e-8, maxiter=None, preconditioner="none", ilu_fill_factor=10, ilu_drop_tol=1e-4)`
+- `solve_stats(a, b, method="cg", ...)`
+- `factorize(a, method="auto")` → `SparseFactorized`
 - `to_dense(a)`
 - `from_coo(data, row, col, shape)`
+
+#### Sparse @ dense multiply (`spmm`)
+
+Compute `Y = A @ B` where `A` is sparse and `B` is dense. Equivalent to SciPy/NumPy `A @ B` with a sparse left factor.
+
+```python
+Y = sparse.spmm(A, B)   # A: (m, n) sparse, B: (n, k) dense → (m, k) dense
+```
+
+**Requirements and behavior:**
+
+- `A` must be 2D sparse (any SciPy sparse format; converted to CSC).
+- `B` must be a 2D `float64` array with shape `(n, k)` where `n = A.shape[1]`.
+- Raises `ValueError` on dimension mismatch.
+
+#### Sparse @ sparse multiply (`spspmm`)
+
+Compute `C = A @ B` with sparse factors. Returns a new SciPy CSC matrix.
+
+```python
+C = sparse.spspmm(A, B)   # A: (m, n), B: (n, k) → CSC (m, k)
+```
+
+**Requirements and behavior:**
+
+- Both operands must be 2D sparse (converted to CSC).
+- Raises `ValueError` if inner dimensions disagree.
+- Result is pruned and returned as `scipy.sparse.csc_matrix`.
+
+#### Sparse linear solve (`solve`)
+
+Solve `A x = b` for a square sparse matrix `A`. Supports direct and iterative backends. `b` may be a 1D vector or a 2D array with multiple right-hand sides; a 1D `b` returns a 1D `x`.
+
+```python
+# Direct LU (default for method="auto")
+x = sparse.solve(A, b, method="lu")
+X = sparse.solve(A, B, method="lu")
+
+# Conjugate gradient on SPD systems
+x = sparse.solve(A, b, method="cg")
+x = sparse.solve(A, b, method="cg", preconditioner="jacobi")
+x = sparse.solve(A, b, method="cg", preconditioner="ilu", ilu_fill_factor=40)
+
+# BiCGSTAB for general square systems
+x = sparse.solve(A, b, method="bicgstab", tol=1e-8, maxiter=5000)
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `method="auto"` | Direct solve via Eigen `SparseLU` (same as `method="lu"`). |
+| `method="lu"` | Factorize with `SparseLU` and solve each RHS column. |
+| `method="cg"` | Conjugate gradient for self-adjoint (symmetric) `A`. |
+| `method="bicgstab"` | BiCGSTAB for general square `A`. |
+| `tol=1e-8` | Relative residual tolerance for iterative methods (`norm(Ax-b)/norm(b)`). |
+| `maxiter=None` | Iteration cap for CG/BiCGSTAB. Default: `2 * n` where `n = A.shape[0]`. |
+| `preconditioner="none"` | CG only. Identity preconditioner (unpreconditioned CG). |
+| `preconditioner="jacobi"` | CG only. Diagonal (Jacobi) preconditioner. |
+| `preconditioner="ilu"` | CG only. Incomplete LU via Eigen `IncompleteLUT`. |
+| `ilu_fill_factor=10` | CG + ILU only. Fill-ratio upper bound passed to `IncompleteLUT`. |
+| `ilu_drop_tol=1e-4` | CG + ILU only. Drop tolerance for `IncompleteLUT`. |
+
+**Requirements and behavior:**
+
+- `A` must be square sparse; `b` must have length `n` (1D) or shape `(n, k)` (2D).
+- `preconditioner` is only valid with `method="cg"`; other methods raise `ValueError` if a nontrivial preconditioner is requested.
+- Iterative solvers raise `RuntimeError` if they do not converge within `maxiter` at the requested tolerance.
+- LU raises `RuntimeError` if factorization or solve fails.
+
+**When to use which method:**
+
+| Method | Matrix structure | Backend |
+|--------|------------------|---------|
+| `"lu"` / `"auto"` | General square | Eigen `SparseLU` |
+| `"cg"` | Symmetric (SPD in practice) | Eigen `ConjugateGradient` |
+| `"bicgstab"` | General square, nonsymmetric | Eigen `BiCGSTAB` |
+
+CG preconditioners apply only to `"cg"`. For difficult SPD problems (e.g. Poisson-like operators), try `"jacobi"` or `"ilu"` with tuned `ilu_fill_factor` / `ilu_drop_tol`.
+
+#### CG diagnostics (`solve_stats`)
+
+Return iteration count and estimated relative error from a CG solve without changing the `solve` API. Useful for checking convergence or comparing preconditioners.
+
+```python
+stats = sparse.solve_stats(A, b, method="cg", preconditioner="ilu", ilu_fill_factor=40)
+print(stats["iterations"], stats["error"])
+```
+
+| Key | Description |
+|-----|-------------|
+| `"iterations"` | CG iterations performed. |
+| `"error"` | Estimated relative residual from Eigen. |
+
+**Requirements and behavior:**
+
+- Only supported for `method="cg"`.
+- Requires a single RHS column (1D `b` or `(n, 1)` array).
+- Accepts the same `tol`, `maxiter`, `preconditioner`, `ilu_fill_factor`, and `ilu_drop_tol` arguments as `solve`.
+- Raises `RuntimeError` if CG does not converge (same as `solve`).
+
+#### Sparse LU factorization (`factorize`)
+
+Precompute a reusable LU factorization for repeated solves with different right-hand sides. Wraps Eigen `SparseLU` (analyze + factorize once, solve many times).
+
+```python
+fac = sparse.factorize(A)
+x = fac.solve(b)       # 1D or 2D b; returns ndarray (2D if b is 2D)
+X = fac.solve(B)
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `method="auto"` | Only option today; uses Eigen `SparseLU`. |
+
+**Requirements and behavior:**
+
+- `A` must be square sparse.
+- `fac.solve(b)` requires `b` with shape `(n,)` or `(n, k)` matching `A.shape[0]`.
+- Raises `RuntimeError` if factorization fails; `ValueError` on shape mismatch at solve time.
+- The factorized object holds the pattern and numeric factors; reuse it when solving many systems with the same `A`.
+
+A thin wrapper is also available as `peigen.decomp.SparseFactorized(A)`.
 
 ### `peigen.decomp`
 

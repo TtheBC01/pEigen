@@ -44,14 +44,63 @@ def spspmm(a, b):
     return _core.spspmm(a, b)
 
 
-def solve(a, b, *, method: str = "auto", tol: float = 1e-8, maxiter: int | None = None):
+def solve(
+    a,
+    b,
+    *,
+    method: str = "auto",
+    tol: float = 1e-8,
+    maxiter: int | None = None,
+    preconditioner: str = "none",
+    ilu_fill_factor: int = 10,
+    ilu_drop_tol: float = 1e-4,
+):
     """Solve sparse linear system a x = b."""
     sp = _require_scipy()
     if not sp.issparse(a):
         a = sp.csc_matrix(a)
     rhs, squeezed = _as_2d_rhs(b)
-    x = _core.sparse_solve(a, rhs, method, tol, 0 if maxiter is None else maxiter)
+    x = _core.sparse_solve(
+        a,
+        rhs,
+        method,
+        tol,
+        0 if maxiter is None else maxiter,
+        preconditioner,
+        ilu_fill_factor,
+        ilu_drop_tol,
+    )
     return x[:, 0] if squeezed else x
+
+
+def solve_stats(
+    a,
+    b,
+    *,
+    method: str = "cg",
+    tol: float = 1e-8,
+    maxiter: int | None = None,
+    preconditioner: str = "none",
+    ilu_fill_factor: int = 10,
+    ilu_drop_tol: float = 1e-4,
+):
+    """Return iteration count and estimated error for an iterative CG solve."""
+    sp = _require_scipy()
+    if not sp.issparse(a):
+        a = sp.csc_matrix(a)
+    rhs, squeezed = _as_2d_rhs(b)
+    if not squeezed and rhs.shape[1] != 1:
+        raise ValueError("solve_stats requires a single RHS column")
+    return _core.sparse_solve_stats(
+        a,
+        rhs,
+        method,
+        tol,
+        0 if maxiter is None else maxiter,
+        preconditioner,
+        ilu_fill_factor,
+        ilu_drop_tol,
+    )
 
 
 def factorize(a, *, method: str = "auto"):
