@@ -8,6 +8,8 @@ import numpy as np
 
 from peigen import build_config, linalg
 
+from _table import compare_row, print_compare_section
+
 
 def _timed(fn, *args, warmup: int = 3, runs: int = 10):
     for _ in range(warmup):
@@ -23,11 +25,6 @@ def _timed(fn, *args, warmup: int = 3, runs: int = 10):
     p50 = durations[len(durations) // 2]
     p90 = durations[int(len(durations) * 0.9) - 1]
     return p50, p90
-
-
-def _report_line(op: str, size: str, numpy_ms: float, peigen_ms: float):
-    speedup = numpy_ms / peigen_ms if peigen_ms > 0 else float("inf")
-    print(f"{op:<18} {size:<14} {numpy_ms:>14.3f} {peigen_ms:>15.3f} {speedup:>8.2f}x")
 
 
 def _svd_methods():
@@ -123,18 +120,17 @@ def _solvable(rng: np.random.Generator, n: int) -> np.ndarray:
 def run():
     rng = np.random.default_rng(123)
 
-    print(f"{'op':<18} {'size':<14} {'numpy_p50(ms)':>14} {'peigen_p50(ms)':>15} {'speedup':>8}")
-    print("-" * 76)
-    print("Matmul (with copy-out)")
+    matmul_rows: list[list[str]] = []
     for label, a_shape, b_shape in MATMUL_CASES:
         a = rng.standard_normal(a_shape)
         b = rng.standard_normal(b_shape)
 
         np_p50, _ = _timed(lambda x, y: x @ y, a, b)
         pg_p50, _ = _timed(linalg.matmul, a, b)
-        _report_line("matmul", label, np_p50, pg_p50)
+        matmul_rows.append(compare_row("matmul", label, np_p50, pg_p50))
+    print_compare_section("Matmul (with copy-out)", matmul_rows, ref_label="numpy")
 
-    print("\nSolve (with copy-out)")
+    solve_rows: list[list[str]] = []
     for label, a_shape, b_shape in SOLVE_CASES:
         n = a_shape[0]
         a = _solvable(rng, n)
@@ -143,17 +139,19 @@ def run():
         np_p50, _ = _timed(lambda x, y: np.linalg.solve(x, y), a, b)
         for method in _lapack_eigen_methods():
             pg_p50, _ = _timed(lambda x, y, m=method: linalg.solve(x, y, method=m), a, b)
-            _report_line(f"solve[{method}]", label, np_p50, pg_p50)
+            solve_rows.append(compare_row(f"solve[{method}]", label, np_p50, pg_p50))
+    print_compare_section("Solve (with copy-out)", solve_rows, ref_label="numpy")
 
-    print("\nNorm Frobenius (2D default)")
+    norm_rows: list[list[str]] = []
     for label, shape in NORM_CASES:
         a = rng.standard_normal(shape)
 
         np_p50, _ = _timed(lambda x: np.linalg.norm(x), a)
         pg_p50, _ = _timed(linalg.norm, a)
-        _report_line("norm", label, np_p50, pg_p50)
+        norm_rows.append(compare_row("norm", label, np_p50, pg_p50))
+    print_compare_section("Norm Frobenius (2D default)", norm_rows, ref_label="numpy")
 
-    print("\nSVD with copy-out (U, s, Vt returned)")
+    svd_rows: list[list[str]] = []
     for label, shape in SVD_CASES:
         a = rng.standard_normal(shape)
         np_p50, _ = _timed(lambda x: np.linalg.svd(x, full_matrices=False), a)
@@ -163,9 +161,10 @@ def run():
                 lambda x, m=method: linalg.svd(x, full_matrices=False, method=m),
                 a,
             )
-            _report_line(f"svd[{method}]", label, np_p50, pg_p50)
+            svd_rows.append(compare_row(f"svd[{method}]", label, np_p50, pg_p50))
+    print_compare_section("SVD with copy-out (U, s, Vt returned)", svd_rows, ref_label="numpy")
 
-    print("\nSVD compute-only (minimal return; excludes U/V copy-out)")
+    svd_compute_rows: list[list[str]] = []
     for label, shape in SVD_CASES:
         a = rng.standard_normal(shape)
         np_p50, _ = _timed(lambda x: np.linalg.svd(x, full_matrices=False), a)
@@ -175,16 +174,22 @@ def run():
                 lambda x, m=method: linalg.svd_compute(x, full_matrices=False, method=m),
                 a,
             )
-            _report_line(f"svd_compute[{method}]", label, np_p50, pg_p50)
+            svd_compute_rows.append(compare_row(f"svd_compute[{method}]", label, np_p50, pg_p50))
+    print_compare_section(
+        "SVD compute-only (minimal return; excludes U/V copy-out)",
+        svd_compute_rows,
+        ref_label="numpy",
+    )
 
-    print("\nQR with copy-out (Q, R returned, mode='reduced')")
+    qr_rows: list[list[str]] = []
     for label, shape in QR_CASES:
         a = rng.standard_normal(shape)
         np_p50, _ = _timed(lambda x: np.linalg.qr(x, mode="reduced"), a)
         pg_p50, _ = _timed(lambda x: linalg.qr(x, mode="reduced"), a)
-        _report_line("qr", label, np_p50, pg_p50)
+        qr_rows.append(compare_row("qr", label, np_p50, pg_p50))
+    print_compare_section("QR with copy-out (Q, R returned, mode='reduced')", qr_rows, ref_label="numpy")
 
-    print("\nEigh with copy-out (eigenvalues and eigenvectors returned)")
+    eigh_rows: list[list[str]] = []
     for label, shape in EIGH_CASES:
         a = _symmetric(rng, shape)
         np_p50, _ = _timed(lambda x: np.linalg.eigh(x), a)
@@ -194,9 +199,14 @@ def run():
                 lambda x, m=method: linalg.eigh(x, method=m),
                 a,
             )
-            _report_line(f"eigh[{method}]", label, np_p50, pg_p50)
+            eigh_rows.append(compare_row(f"eigh[{method}]", label, np_p50, pg_p50))
+    print_compare_section(
+        "Eigh with copy-out (eigenvalues and eigenvectors returned)",
+        eigh_rows,
+        ref_label="numpy",
+    )
 
-    print("\nEigh eigenvalues only (no eigenvector copy-out)")
+    eighvals_rows: list[list[str]] = []
     for label, shape in EIGH_CASES:
         a = _symmetric(rng, shape)
         np_p50, _ = _timed(lambda x: np.linalg.eigvalsh(x), a)
@@ -206,9 +216,10 @@ def run():
                 lambda x, m=method: linalg.eighvals(x, method=m),
                 a,
             )
-            _report_line(f"eighvals[{method}]", label, np_p50, pg_p50)
+            eighvals_rows.append(compare_row(f"eighvals[{method}]", label, np_p50, pg_p50))
+    print_compare_section("Eigh eigenvalues only (no eigenvector copy-out)", eighvals_rows, ref_label="numpy")
 
-    print("\nEigh eigenvalues compute-only (minimal return; excludes eigenvector copy-out)")
+    eigh_compute_rows: list[list[str]] = []
     for label, shape in EIGH_CASES:
         a = _symmetric(rng, shape)
         np_p50, _ = _timed(lambda x: np.linalg.eigvalsh(x), a)
@@ -218,7 +229,12 @@ def run():
                 lambda x, m=method: linalg.eigh_compute(x, method=m),
                 a,
             )
-            _report_line(f"eigh_compute[{method}]", label, np_p50, pg_p50)
+            eigh_compute_rows.append(compare_row(f"eigh_compute[{method}]", label, np_p50, pg_p50))
+    print_compare_section(
+        "Eigh eigenvalues compute-only (minimal return; excludes eigenvector copy-out)",
+        eigh_compute_rows,
+        ref_label="numpy",
+    )
 
 
 if __name__ == "__main__":

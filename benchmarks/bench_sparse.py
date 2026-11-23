@@ -19,6 +19,8 @@ except ImportError as exc:  # pragma: no cover
 
 from peigen import sparse
 
+from _table import cg_row, compare_row, print_cg_section, print_compare_section
+
 
 # (nx, ny) structured grids; n = nx * ny is the global matrix dimension.
 BENCH_GRIDS = (
@@ -58,47 +60,6 @@ def _timed(fn, *args, warmup: int = 3, runs: int = 10):
 
     durations.sort()
     return durations[len(durations) // 2]
-
-
-def _report_line(op: str, size: str, scipy_ms: float, peigen_ms: float):
-    speedup = scipy_ms / peigen_ms if peigen_ms > 0 else float("inf")
-    print(f"{op:<30} {size:<12} {scipy_ms:>14.3f} {peigen_ms:>15.3f} {speedup:>8.2f}x")
-
-
-def _report_cg_line(
-    op: str,
-    size: str,
-    scipy_ms: float,
-    peigen_ms: float,
-    *,
-    scipy_iters: int,
-    peigen_iters: int,
-    scipy_resid: float,
-    peigen_resid: float,
-    scipy_ok: bool,
-    peigen_ok: bool,
-):
-    if not scipy_ok or not peigen_ok:
-        speedup_str = "     n/a"
-    elif peigen_ms != peigen_ms:
-        speedup_str = "     n/a"
-    elif peigen_ms > 0:
-        speedup_str = f"{scipy_ms / peigen_ms:>8.2f}x"
-    else:
-        speedup_str = f"{'inf':>8}x"
-
-    if peigen_ms != peigen_ms:
-        peigen_str = "           fail"
-    else:
-        peigen_str = f"{peigen_ms:>15.3f}"
-
-    scipy_resid_str = f"{scipy_resid:.1e}" if scipy_ok else "fail"
-    peigen_resid_str = f"{peigen_resid:.1e}" if peigen_ok else "fail"
-    print(
-        f"{op:<30} {size:<12} {scipy_ms:>14.3f} {peigen_str} {speedup_str}"
-        f"  iters {scipy_iters}/{peigen_iters}"
-        f"  resid {scipy_resid_str}/{peigen_resid_str}"
-    )
 
 
 def _grid_label(nx: int, ny: int) -> str:
@@ -366,15 +327,12 @@ def _peigen_iterative_solve(method: str, a, b: np.ndarray, *, rtol: float, maxit
 def run():
     rng = np.random.default_rng(321)
 
-    print(f"{'op':<30} {'size':<12} {'scipy_p50(ms)':>14} {'peigen_p50(ms)':>15} {'speedup':>8}")
-    print("-" * 80)
     print(
         "Grid operators: 5-point Laplacian (SPD/CG), upwind advection–diffusion "
         "(LU/BiCGSTAB), stiffness @ lumped mass (spspmm)"
     )
-    print("-" * 80)
 
-    print("\nSpmm (sparse @ dense; Laplacian operator)")
+    spmm_rows: list[list[str]] = []
     for nx, ny in BENCH_GRIDS:
         a = laplacian_2d(nx, ny)
         n = nx * ny
@@ -383,9 +341,14 @@ def run():
 
         scipy_ms = _timed(lambda x, y: x @ y, a, b)
         peigen_ms = _timed(sparse.spmm, a, b)
-        _report_line("spmm", label, scipy_ms, peigen_ms)
+        spmm_rows.append(compare_row("spmm", label, scipy_ms, peigen_ms))
+    print_compare_section(
+        "Spmm (sparse @ dense; Laplacian operator)",
+        spmm_rows,
+        ref_label="scipy",
+    )
 
-    print("\nSpspmm (stiffness @ lumped mass, copy-out)")
+    spspmm_rows: list[list[str]] = []
     for nx, ny in BENCH_GRIDS:
         stiffness = laplacian_2d(nx, ny)
         mass = lumped_mass_2d(nx, ny)
@@ -393,15 +356,17 @@ def run():
 
         scipy_ms = _timed(lambda k, m: k @ m, stiffness, mass)
         peigen_ms = _timed(sparse.spspmm, stiffness, mass)
-        _report_line("spspmm", label, scipy_ms, peigen_ms)
-
-    print("\nSparse solve [CG] (setup + solve; 2D Laplacian, SPD; single RHS)")
-    print(
-        "CG lines: speedup only when both sides converge; same (A, b) per grid across "
-        "preconditioners."
+        spspmm_rows.append(compare_row("spspmm", label, scipy_ms, peigen_ms))
+    print_compare_section(
+        "Spspmm (stiffness @ lumped mass, copy-out)",
+        spspmm_rows,
+        ref_label="scipy",
     )
-    print(
-        f"ILU tuning: SciPy spilu(fill={SCIPY_ILU_FILL_FACTOR}, drop_tol={ILU_DROP_TOL}); "
+
+    cg_rows: list[list[str]] = []
+    cg_notes = (
+        "Speedup only when both sides converge; same (A, b) per grid across preconditioners. "
+        f"ILU: SciPy spilu(fill={SCIPY_ILU_FILL_FACTOR}, drop_tol={ILU_DROP_TOL}); "
         f"pEigen IncompleteLUT(fill={EIGEN_ILU_FILL_FACTOR}, drop_tol={ILU_DROP_TOL})."
     )
     for nx, ny in BENCH_GRIDS:
@@ -434,20 +399,27 @@ def run():
             peigen_prof = _peigen_cg_profile(
                 a, b, rtol=SOLVE_RTOL, maxiter=maxiter, preconditioner=preconditioner
             )
-            _report_cg_line(
-                op,
-                label,
-                scipy_ms,
-                peigen_ms,
-                scipy_iters=scipy_prof["iters"],
-                peigen_iters=peigen_prof["iters"],
-                scipy_resid=scipy_prof["residual"],
-                peigen_resid=peigen_prof["residual"],
-                scipy_ok=scipy_prof["converged"],
-                peigen_ok=peigen_prof["converged"],
+            cg_rows.append(
+                cg_row(
+                    op,
+                    label,
+                    scipy_ms,
+                    peigen_ms,
+                    scipy_iters=scipy_prof["iters"],
+                    peigen_iters=peigen_prof["iters"],
+                    scipy_resid=scipy_prof["residual"],
+                    peigen_resid=peigen_prof["residual"],
+                    scipy_ok=scipy_prof["converged"],
+                    peigen_ok=peigen_prof["converged"],
+                )
             )
+    print_cg_section(
+        "Sparse solve [CG] (setup + solve; 2D Laplacian, SPD; single RHS)",
+        cg_rows,
+        notes=cg_notes,
+    )
 
-    print("\nSparse solve [BiCGSTAB] (setup + solve; advection–diffusion)")
+    bicgstab_rows: list[list[str]] = []
     for nx, ny in BENCH_GRIDS:
         a = advection_diffusion_2d(nx, ny)
         n = nx * ny
@@ -469,18 +441,28 @@ def run():
             a,
             b,
         )
-        _report_line("sparse_solve[bicgstab]", label, scipy_ms, peigen_ms)
+        bicgstab_rows.append(compare_row("sparse_solve[bicgstab]", label, scipy_ms, peigen_ms))
+    print_compare_section(
+        "Sparse solve [BiCGSTAB] (setup + solve; advection–diffusion)",
+        bicgstab_rows,
+        ref_label="scipy",
+    )
 
-    print("\nSparse factorize [LU] (pattern + numeric factorization; advection–diffusion)")
+    factorize_rows: list[list[str]] = []
     for nx, ny in BENCH_GRIDS:
         a = advection_diffusion_2d(nx, ny)
         label = _grid_label(nx, ny)
 
         scipy_ms = _timed(lambda x: spla.splu(x.tocsc()), a)
         peigen_ms = _timed(sparse.factorize, a)
-        _report_line("sparse_factorize[lu]", label, scipy_ms, peigen_ms)
+        factorize_rows.append(compare_row("sparse_factorize[lu]", label, scipy_ms, peigen_ms))
+    print_compare_section(
+        "Sparse factorize [LU] (pattern + numeric factorization; advection–diffusion)",
+        factorize_rows,
+        ref_label="scipy",
+    )
 
-    print("\nSparse solve [LU] (factorize + solve; advection–diffusion)")
+    lu_rows: list[list[str]] = []
     for nx, ny in BENCH_GRIDS:
         a = advection_diffusion_2d(nx, ny)
         n = nx * ny
@@ -489,7 +471,12 @@ def run():
 
         scipy_ms = _timed(spla.spsolve, a, b)
         peigen_ms = _timed(lambda x, y: sparse.solve(x, y, method="lu"), a, b)
-        _report_line("sparse_solve[lu]", label, scipy_ms, peigen_ms)
+        lu_rows.append(compare_row("sparse_solve[lu]", label, scipy_ms, peigen_ms))
+    print_compare_section(
+        "Sparse solve [LU] (factorize + solve; advection–diffusion)",
+        lu_rows,
+        ref_label="scipy",
+    )
 
 
 if __name__ == "__main__":
