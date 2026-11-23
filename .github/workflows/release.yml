@@ -1,37 +1,63 @@
 name: Release
 
+# Tags (v*) build, test and publish. Manual runs and PRs touching packaging only build and test,
+# which is the way to dry-run a release before tagging.
 on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/release.yml"
+      - "pyproject.toml"
+      - "CMakeLists.txt"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 jobs:
+  check_version:
+    name: Check tag matches package version
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Compare tag and pyproject version
+        run: |
+          python - <<'EOF'
+          import os, sys, tomllib
+          tag = os.environ["GITHUB_REF_NAME"].removeprefix("v")
+          version = tomllib.load(open("pyproject.toml", "rb"))["project"]["version"]
+          print(f"tag={tag} pyproject={version}")
+          sys.exit(0 if tag == version else f"tag v{tag} does not match pyproject version {version}")
+          EOF
+
   build_wheels:
     name: Build wheels (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        # x86_64 + aarch64 Linux run natively; macOS builds arm64 and cross-compiles x86_64.
+        # Build/test settings live in [tool.cibuildwheel] in pyproject.toml.
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
-      - uses: pypa/cibuildwheel@v2.20.0
-        env:
-          CIBW_BUILD: cp310-* cp311-* cp312-*
-          CIBW_SKIP: "*-win_*"
-          CIBW_ARCHS_LINUX: x86_64
-          CIBW_ARCHS_MACOS: "arm64 x86_64"
-          CIBW_ENVIRONMENT: PEIGEN_USE_OPENMP=OFF
+      - uses: pypa/cibuildwheel@v4.3.5
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ matrix.os }}
           path: ./wheelhouse/*.whl
@@ -41,32 +67,38 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: "3.14"
 
       - name: Build sdist
         run: |
-          python -m pip install --upgrade pip build
+          python -m pip install --upgrade pip build twine
           python -m build --sdist
+          twine check --strict dist/*
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sdist
           path: dist/*.tar.gz
 
   publish_pypi:
     name: Publish to PyPI
-    needs: [build_wheels, build_sdist]
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [check_version, build_wheels, build_sdist]
     runs-on: ubuntu-latest
-    environment: pypi
+    environment:
+      name: pypi
+      url: https://pypi.org/p/peigen
+    permissions:
+      id-token: write  # PyPI Trusted Publishing
 
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
@@ -76,17 +108,20 @@ jobs:
 
   github_release:
     name: Create GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: [publish_pypi]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: release-artifacts
           merge-multiple: true
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
           files: release-artifacts/*

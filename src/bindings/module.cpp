@@ -21,18 +21,7 @@
 #include <Eigen/SparseLU>
 
 #if defined(PEIGEN_LAPACK_ENABLED)
-#include <lapack/lapack.h>
-
-using lapack_int = int;
-
-// Not declared in Eigen's bundled lapack.h (used for divide-and-conquer / MRRR paths).
-extern "C" {
-EIGEN_LAPACK_API void BLASFUNC(dsyevd)(const char *, const char *, int *, double *, int *, double *, double *, int *,
-                                       int *, int *, int *);
-EIGEN_LAPACK_API void BLASFUNC(dsyevr)(const char *, const char *, const char *, int *, double *, int *,
-                                       double *, double *, int *, int *, double *, int *, double *, double *, int *,
-                                       int *, double *, int *, int *, int *, int *);
-}
+#include "lapack_decls.h"
 #endif
 
 namespace py = pybind11;
@@ -226,8 +215,8 @@ static SvdFactors compute_svd_lapack(ColMatrix matrix, bool full_matrices) {
   lapack_int info = 0;
   std::vector<lapack_int> iwork(static_cast<std::size_t>(8) * static_cast<std::size_t>(k));
 
-  BLASFUNC(dgesdd)(&jobz, &m, &n, matrix.data(), &lda, out.s.data(), out.u.data(), &ldu, vt.data(), &ldvt,
-                   &work_query, &lwork, iwork.data(), &info);
+  dgesdd_(&jobz, &m, &n, matrix.data(), &lda, out.s.data(), out.u.data(), &ldu, vt.data(), &ldvt,
+                   &work_query, &lwork, iwork.data(), &info, 1);
   if (info != 0) {
     throw std::runtime_error("LAPACK dgesdd workspace query failed with info=" + std::to_string(info));
   }
@@ -235,8 +224,8 @@ static SvdFactors compute_svd_lapack(ColMatrix matrix, bool full_matrices) {
   lwork = static_cast<lapack_int>(work_query);
   std::vector<double> work(static_cast<std::size_t>(lwork));
 
-  BLASFUNC(dgesdd)(&jobz, &m, &n, matrix.data(), &lda, out.s.data(), out.u.data(), &ldu, vt.data(), &ldvt,
-                   work.data(), &lwork, iwork.data(), &info);
+  dgesdd_(&jobz, &m, &n, matrix.data(), &lda, out.s.data(), out.u.data(), &ldu, vt.data(), &ldvt,
+                   work.data(), &lwork, iwork.data(), &info, 1);
   if (info != 0) {
     throw std::runtime_error("LAPACK dgesdd failed with info=" + std::to_string(info));
   }
@@ -339,7 +328,7 @@ static void lapack_dsyev_values(ColMatrix &matrix, bool lower, Eigen::VectorXd &
   lapack_int info = 0;
   double work_query = 0.0;
 
-  BLASFUNC(dsyev)(&jobz, &uplo, &n, matrix.data(), &lda, w.data(), &work_query, &lwork, &info);
+  dsyev_(&jobz, &uplo, &n, matrix.data(), &lda, w.data(), &work_query, &lwork, &info, 1, 1);
   if (info != 0) {
     throw std::runtime_error("LAPACK dsyev workspace query failed with info=" + std::to_string(info));
   }
@@ -347,7 +336,7 @@ static void lapack_dsyev_values(ColMatrix &matrix, bool lower, Eigen::VectorXd &
   lwork = static_cast<lapack_int>(work_query);
   std::vector<double> work(static_cast<std::size_t>(lwork));
 
-  BLASFUNC(dsyev)(&jobz, &uplo, &n, matrix.data(), &lda, w.data(), work.data(), &lwork, &info);
+  dsyev_(&jobz, &uplo, &n, matrix.data(), &lda, w.data(), work.data(), &lwork, &info, 1, 1);
   if (info != 0) {
     throw std::runtime_error("LAPACK dsyev failed with info=" + std::to_string(info));
   }
@@ -372,8 +361,8 @@ static bool lapack_dsyevr_values(ColMatrix &matrix, bool lower, Eigen::VectorXd 
   double work_query = 0.0;
   lapack_int iwork_query = 0;
 
-  BLASFUNC(dsyevr)(&jobz, &range, &uplo, &n, matrix.data(), &lda, &vl, &vu, &il, &iu, &abstol, &m, w.data(),
-                   nullptr, &ldz, nullptr, &work_query, &lwork, &iwork_query, &liwork, &info);
+  dsyevr_(&jobz, &range, &uplo, &n, matrix.data(), &lda, &vl, &vu, &il, &iu, &abstol, &m, w.data(),
+                   nullptr, &ldz, nullptr, &work_query, &lwork, &iwork_query, &liwork, &info, 1, 1, 1);
   if (info != 0) {
     return false;
   }
@@ -383,8 +372,8 @@ static bool lapack_dsyevr_values(ColMatrix &matrix, bool lower, Eigen::VectorXd 
   std::vector<double> work(static_cast<std::size_t>(lwork));
   std::vector<lapack_int> iwork(static_cast<std::size_t>(liwork));
 
-  BLASFUNC(dsyevr)(&jobz, &range, &uplo, &n, matrix.data(), &lda, &vl, &vu, &il, &iu, &abstol, &m, w.data(),
-                   nullptr, &ldz, nullptr, work.data(), &lwork, iwork.data(), &liwork, &info);
+  dsyevr_(&jobz, &range, &uplo, &n, matrix.data(), &lda, &vl, &vu, &il, &iu, &abstol, &m, w.data(),
+                   nullptr, &ldz, nullptr, work.data(), &lwork, iwork.data(), &liwork, &info, 1, 1, 1);
   if (info != 0 || m != n) {
     return false;
   }
@@ -428,8 +417,8 @@ static EighFactors compute_eigh_lapack(ColMatrix matrix, bool lower, bool eigenv
   EighFactors out;
   out.w = Eigen::VectorXd::Zero(n);
 
-  BLASFUNC(dsyevd)(&jobz, &uplo, &n, matrix.data(), &lda, out.w.data(), &work_query, &lwork, &iwork_query,
-                   &liwork, &info);
+  dsyevd_(&jobz, &uplo, &n, matrix.data(), &lda, out.w.data(), &work_query, &lwork, &iwork_query,
+                   &liwork, &info, 1, 1);
   if (info != 0) {
     throw std::runtime_error("LAPACK dsyevd workspace query failed with info=" + std::to_string(info));
   }
@@ -439,8 +428,8 @@ static EighFactors compute_eigh_lapack(ColMatrix matrix, bool lower, bool eigenv
   std::vector<double> work(static_cast<std::size_t>(lwork));
   std::vector<lapack_int> iwork(static_cast<std::size_t>(liwork));
 
-  BLASFUNC(dsyevd)(&jobz, &uplo, &n, matrix.data(), &lda, out.w.data(), work.data(), &lwork, iwork.data(), &liwork,
-                   &info);
+  dsyevd_(&jobz, &uplo, &n, matrix.data(), &lda, out.w.data(), work.data(), &lwork, iwork.data(), &liwork,
+                   &info, 1, 1);
   if (info != 0) {
     throw std::runtime_error("LAPACK dsyevd failed with info=" + std::to_string(info));
   }
@@ -590,7 +579,7 @@ static py::array_t<double> solve_lapack(ColMatrix lhs, ColMatrix rhs) {
   lapack_int info = 0;
   std::vector<lapack_int> ipiv(static_cast<std::size_t>(n));
 
-  BLASFUNC(dgesv)(&n, &nrhs, lhs.data(), &lda, ipiv.data(), rhs.data(), &ldb, &info);
+  dgesv_(&n, &nrhs, lhs.data(), &lda, ipiv.data(), rhs.data(), &ldb, &info);
   if (info != 0) {
     throw py::value_error("matrix is singular or ill-conditioned");
   }
@@ -1343,6 +1332,12 @@ static py::dict core_build_config() {
   cfg["vectorization_enabled"] = false;
 #endif
   cfg["eigen_mpl2_only"] = true;
+#ifdef EIGEN_VERSION_STRING
+  cfg["eigen_version"] = EIGEN_VERSION_STRING;
+#else
+  cfg["eigen_version"] = std::to_string(EIGEN_WORLD_VERSION) + "." + std::to_string(EIGEN_MAJOR_VERSION) + "." +
+                         std::to_string(EIGEN_MINOR_VERSION);
+#endif
   return cfg;
 }
 

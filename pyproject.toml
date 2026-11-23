@@ -1,28 +1,44 @@
 [build-system]
 requires = [
-  "scikit-build-core>=0.10",
+  "scikit-build-core>=0.11",
   "pybind11>=3.0.0",
-  "numpy>=1.23",
 ]
 build-backend = "scikit_build_core.build"
 
 [project]
 name = "peigen"
 version = "2.0.0"
-description = "Eigen-powered linear algebra routines for NumPy/SciPy"
+description = "Eigen-powered dense and sparse linear algebra for NumPy/SciPy, including sparse Cholesky"
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT AND MPL-2.0"
+# Wheels contain compiled Eigen code (built with EIGEN_MPL2_ONLY), so ship Eigen's MPL-2.0 notice.
+license-files = ["LICENSE", "eigen/COPYING.MPL2"]
 authors = [{ name = "Todd Chapman" }]
 requires-python = ">=3.10"
 dependencies = ["numpy>=1.23"]
+keywords = ["eigen", "linear-algebra", "sparse", "cholesky", "numpy", "scipy"]
 classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering :: Mathematics",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.15",
   "Programming Language :: C++",
-  "License :: OSI Approved :: MIT License",
   "Operating System :: MacOS",
   "Operating System :: POSIX :: Linux",
 ]
+
+[project.urls]
+Homepage = "https://github.com/TtheBC01/pEigen"
+Source = "https://github.com/TtheBC01/pEigen"
+Issues = "https://github.com/TtheBC01/pEigen/issues"
+Changelog = "https://github.com/TtheBC01/pEigen/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 sparse = ["scipy>=1.10"]
@@ -41,6 +57,14 @@ benchmark = [
 wheel.packages = ["python/peigen"]
 cmake.source-dir = "."
 build-dir = "build/{wheel_tag}"
+# The Eigen submodule is ~2,000 files (docs, tests, benchmarks); the build only needs the headers
+# and its license notices.
+sdist.exclude = ["eigen/", ".github/", "SUMMARY.md"]
+sdist.include = [
+  "eigen/Eigen/",
+  "eigen/COPYING.*",
+  "eigen/README.md",
+]
 
 [tool.scikit-build.cmake.define]
 PEIGEN_USE_OPENMP = "OFF"
@@ -55,3 +79,27 @@ markers = [
   "benchmark: performance benchmarks",
   "sparse: requires scipy",
 ]
+
+[tool.cibuildwheel]
+build = "cp310-* cp311-* cp312-* cp313-* cp314-* cp315-*"
+# Free-threaded (cp31?t) builds need the module to declare GIL-free support; musllinux needs a
+# separate BLAS setup. Both are deferred past 2.0.
+skip = "cp31?t-* *-musllinux_*"
+build-verbosity = 1
+test-extras = ["test"]
+test-sources = ["tests", "pyproject.toml"]
+test-command = "python -m pytest -q -m \"not benchmark\""
+# Release wheels must ship with BLAS/LAPACK; tests/test_build_config.py enforces this.
+test-environment = { PEIGEN_REQUIRE_LAPACK = "1" }
+
+[tool.cibuildwheel.linux]
+# Native arch only: x86_64 on ubuntu-latest, aarch64 on ubuntu-24.04-arm.
+archs = ["native"]
+# OpenBLAS (serial libopenblas) for BLAS + LAPACK; auditwheel vendors it into the wheel.
+# devel package lives in PowerTools (AlmaLinux 8, manylinux_2_28) or CRB (AlmaLinux 9).
+before-all = "dnf install -y dnf-plugins-core && (dnf config-manager --set-enabled powertools || dnf config-manager --set-enabled crb) && dnf install -y openblas-devel"
+environment = { CMAKE_ARGS = "-DBLA_VENDOR=OpenBLAS" }
+
+[tool.cibuildwheel.macos]
+# Accelerate provides BLAS/LAPACK. x86_64 is cross-compiled on the arm64 runner.
+archs = ["arm64", "x86_64"]

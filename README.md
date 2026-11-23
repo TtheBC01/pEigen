@@ -8,7 +8,8 @@ pEigen is a lightweight Python package that exposes Eigen-powered dense and spar
 - Dense routines in `peigen.linalg`
 - Sparse routines in `peigen.sparse` (optional SciPy dependency)
 - Stateful decomposition helpers in `peigen.decomp`
-- Wheel-first distribution for macOS (arm64 + x86_64) and Linux
+- Sparse Cholesky (`peigen.sparse.cholesky`) with no SuiteSparse/CHOLMOD dependency
+- Prebuilt wheels for CPython 3.10–3.15 on Linux (x86_64, aarch64; OpenBLAS) and macOS (arm64, x86_64; Accelerate)
 
 ## Installation
 
@@ -358,6 +359,7 @@ Example output:
 pEigen build configuration
 --------------------------
 version:               2.0.0
+eigen_version:         5.0.1-dev+master
 build_type:            Release
 blas_enabled:          True
 blas_backend:          accelerate

@@ -4,30 +4,86 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   test:
+    name: Test (${{ matrix.os }}, py${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        python-version: ["3.10", "3.11", "3.12"]
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
+
+    env:
+      # Fail (rather than silently fall back to Eigen-only kernels) if BLAS/LAPACK is not linked.
+      PEIGEN_REQUIRE_LAPACK: "1"
+      # (job-level env cannot use the runner context, so key off the matrix OS name)
+      CMAKE_ARGS: ${{ startsWith(matrix.os, 'ubuntu') && '-DBLA_VENDOR=OpenBLAS' || '' }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
+      - name: Install OpenBLAS (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libopenblas-dev
+
+      - name: Install package
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e .[test]
+          python -c "import peigen; peigen.show_build_config()"
 
       - name: Run tests with coverage
+        run: pytest --cov=peigen --cov-report=term-missing -m "not benchmark"
+
+  sdist:
+    name: Build and test sdist
+    runs-on: ubuntu-latest
+    env:
+      PEIGEN_REQUIRE_LAPACK: "1"
+      CMAKE_ARGS: -DBLA_VENDOR=OpenBLAS
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Install OpenBLAS
         run: |
-          pytest --cov=peigen --cov-report=term-missing -m "not benchmark"
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libopenblas-dev
+
+      - name: Build sdist
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build --sdist
+          twine check --strict dist/*
+
+      # Install from the sdist in a directory without the source tree, so a missing header or
+      # file in the sdist fails here rather than for users.
+      - name: Install from sdist and test
+        run: |
+          python -m pip install "peigen[test] @ file://$(realpath dist/*.tar.gz)"
+          mkdir -p /tmp/sdist-test && cp -r tests pyproject.toml /tmp/sdist-test/
+          cd /tmp/sdist-test && python -m pytest -q -m "not benchmark"

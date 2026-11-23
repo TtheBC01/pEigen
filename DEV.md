@@ -5,6 +5,10 @@
 - Python 3.10+
 - CMake 3.18+
 - A C++17 compiler
+- BLAS/LAPACK (optional but recommended): Accelerate is used automatically on macOS. On Linux,
+  install OpenBLAS (e.g. `sudo apt-get install libopenblas-dev`) and build with
+  `CMAKE_ARGS="-DBLA_VENDOR=OpenBLAS"`; without it the build falls back to Eigen-only kernels.
+  Set `PEIGEN_REQUIRE_LAPACK=1` when running tests to fail if LAPACK was not linked.
 - Git submodules initialized (Eigen headers)
 
 ## Setup

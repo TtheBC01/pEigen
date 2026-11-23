@@ -16,6 +16,7 @@ def show_build_config() -> None:
     print("pEigen build configuration")
     print("--------------------------")
     print(f"version:               {cfg['version']}")
+    print(f"eigen_version:         {cfg['eigen_version']}")
     print(f"build_type:            {cfg['build_type']}")
     print(f"blas_enabled:          {cfg['blas_enabled']}")
     print(f"blas_backend:          {cfg['blas_backend']}")
