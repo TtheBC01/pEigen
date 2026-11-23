@@ -1,5 +1,6 @@
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -463,38 +464,82 @@ static py::tuple svd_to_python(const SvdFactors &factors) {
   return py::make_tuple(assign_to_output(factors.u), vector_to_numpy(factors.s), assign_to_output(factors.vt));
 }
 
+// Zero-copy (when possible) view of a SciPy sparse matrix as an Eigen CSC map.
+//
+// The Eigen::Map points into the three arrays below, so the view must own them: when SciPy stores
+// indices as int64 or data as anything other than float64, the forcecast produces fresh
+// converted arrays whose only reference is held here.
 struct SparseCscView {
   py::object owner;
+  py::array_t<int, py::array::c_style | py::array::forcecast> indptr;
+  py::array_t<int, py::array::c_style | py::array::forcecast> indices;
+  py::array_t<double, py::array::c_style | py::array::forcecast> data;
   Eigen::Map<const Sparse> mat;
+
+  SparseCscView(py::object owner_, py::array_t<int, py::array::c_style | py::array::forcecast> indptr_,
+                py::array_t<int, py::array::c_style | py::array::forcecast> indices_,
+                py::array_t<double, py::array::c_style | py::array::forcecast> data_, int rows, int cols,
+                int nnz)
+      : owner(std::move(owner_)),
+        indptr(std::move(indptr_)),
+        indices(std::move(indices_)),
+        data(std::move(data_)),
+        mat(rows, cols, nnz, indptr.data(), indices.data(), data.data()) {}
+
+  SparseCscView(const SparseCscView &) = delete;
+  SparseCscView &operator=(const SparseCscView &) = delete;
 };
 
-static SparseCscView map_sparse_csc(py::object matrix_obj, bool allow_csr = false) {
+static int checked_int32(py::handle value, const char *what) {
+  const long long v = value.cast<long long>();
+  if (v < 0 || v > static_cast<long long>(std::numeric_limits<int>::max())) {
+    throw py::value_error(std::string("sparse matrix ") + what +
+                          " exceeds the 32-bit index range supported by pEigen");
+  }
+  return static_cast<int>(v);
+}
+
+static std::unique_ptr<SparseCscView> map_sparse_csc(py::object matrix_obj) {
   py::module_ scipy_sparse = py::module_::import("scipy.sparse");
-  py::object csc_type = scipy_sparse.attr("csc_matrix");
-  py::object csr_type = scipy_sparse.attr("csr_matrix");
 
   py::object csc_obj;
-  if (py::isinstance(matrix_obj, csc_type)) {
+  if (!scipy_sparse.attr("issparse")(matrix_obj).cast<bool>()) {
+    csc_obj = scipy_sparse.attr("csc_matrix")(matrix_obj);
+  } else if (matrix_obj.attr("format").cast<std::string>() == "csc") {
     csc_obj = matrix_obj;
-  } else if (allow_csr && py::isinstance(matrix_obj, csr_type)) {
-    csc_obj = matrix_obj.attr("tocsc")();
   } else {
-    csc_obj = csc_type(matrix_obj);
+    csc_obj = matrix_obj.attr("tocsc")();
+  }
+
+  const py::object dtype = csc_obj.attr("dtype");
+  if (dtype.attr("kind").cast<std::string>() == "c") {
+    throw py::type_error("complex sparse matrices are not supported; pEigen operates on real float64 data");
+  }
+
+  // Eigen requires sorted, duplicate-free inner indices. Canonicalize a copy so the caller's
+  // matrix is never mutated.
+  if (!csc_obj.attr("has_canonical_format").cast<bool>()) {
+    csc_obj = csc_obj.attr("copy")();
+    csc_obj.attr("sum_duplicates")();
   }
 
   const auto shape = csc_obj.attr("shape").cast<py::tuple>();
-  const int rows = shape[0].cast<int>();
-  const int cols = shape[1].cast<int>();
+  const int rows = checked_int32(shape[0], "row count");
+  const int cols = checked_int32(shape[1], "column count");
+  const int nnz = checked_int32(csc_obj.attr("nnz"), "nonzero count");
 
-  auto indptr = csc_obj.attr("indptr").cast<py::array_t<int, py::array::forcecast>>();
-  auto indices = csc_obj.attr("indices").cast<py::array_t<int, py::array::forcecast>>();
-  auto data = csc_obj.attr("data").cast<py::array_t<double, py::array::forcecast>>();
+  // Index values are bounded by the shape and nnz checked above, so narrowing to int32 is lossless.
+  using IndexArray = py::array_t<int, py::array::c_style | py::array::forcecast>;
+  using DataArray = py::array_t<double, py::array::c_style | py::array::forcecast>;
+  auto indptr = IndexArray::ensure(csc_obj.attr("indptr"));
+  auto indices = IndexArray::ensure(csc_obj.attr("indices"));
+  auto data = DataArray::ensure(csc_obj.attr("data"));
+  if (!indptr || !indices || !data) {
+    throw py::type_error("sparse matrix index/data arrays could not be converted to int32/float64");
+  }
 
-  return SparseCscView{
-      std::move(csc_obj),
-      Eigen::Map<const Sparse>(rows, cols, static_cast<int>(data.size()), indptr.data(),
-                               indices.data(), data.data()),
-  };
+  return std::make_unique<SparseCscView>(std::move(csc_obj), std::move(indptr), std::move(indices),
+                                         std::move(data), rows, cols, nnz);
 }
 
 static py::object to_scipy_csc(const Sparse &mat) {
@@ -590,8 +635,16 @@ static py::array_t<double> core_solve(const py::array_t<double, py::array::force
   }
 
   Eigen::PartialPivLU<ColMatrix> lu(lhs);
-  if (lu.matrixLU().diagonal().cwiseAbs().minCoeff() < 1e-15) {
-    throw py::value_error("matrix is singular or ill-conditioned");
+  if (lhs.rows() > 0) {
+    // Scale-aware singularity test: compare the smallest pivot to the largest rather than to a
+    // fixed constant, so well-conditioned matrices with tiny entries (e.g. 1e-16 * I) are accepted.
+    // The negated comparison also rejects NaN pivots.
+    const Vector pivots = lu.matrixLU().diagonal().cwiseAbs();
+    const double max_pivot = pivots.maxCoeff();
+    const double tol = static_cast<double>(lhs.rows()) * std::numeric_limits<double>::epsilon() * max_pivot;
+    if (!(max_pivot > 0.0) || !(pivots.minCoeff() > tol) || !std::isfinite(max_pivot)) {
+      throw py::value_error("matrix is singular or ill-conditioned");
+    }
   }
 
   ColMatrix rhs_col = dense_col_from_row_ref(rhs);
@@ -681,35 +734,41 @@ class SparseFactorized {
     Eigen::Map<RowMatrix> out(out_arr.mutable_data(), rhs.rows(), rhs.cols());
     for (int col = 0; col < rhs.cols(); ++col) {
       out.col(col) = lu_->solve(rhs.col(col));
+      if (lu_->info() != Eigen::Success) {
+        throw std::runtime_error("SparseLU solve failed");
+      }
     }
     return out_arr;
   }
+
+  Eigen::Index rows() const { return lu_->rows(); }
+  Eigen::Index cols() const { return lu_->cols(); }
 
  private:
   std::unique_ptr<Eigen::SparseLU<Sparse>> lu_;
 };
 
 static py::array_t<double> core_spmm(py::object a, const py::array_t<double, py::array::forcecast> &b) {
-  SparseCscView sparse = map_sparse_csc(a, true);
+  const auto sparse = map_sparse_csc(a);
   std::unique_ptr<RowMatrix> owned_b;
   const Eigen::Ref<const RowMatrix> rhs = dense_row_ref(b, "b", owned_b);
 
-  if (sparse.mat.cols() != rhs.rows()) {
+  if (sparse->mat.cols() != rhs.rows()) {
     throw py::value_error("spmm dimension mismatch");
   }
 
-  return assign_to_output(sparse.mat * rhs);
+  return assign_to_output(sparse->mat * rhs);
 }
 
 static py::object core_spspmm(py::object a, py::object b) {
-  SparseCscView sparse_a = map_sparse_csc(a, true);
-  SparseCscView sparse_b = map_sparse_csc(b, true);
+  const auto sparse_a = map_sparse_csc(a);
+  const auto sparse_b = map_sparse_csc(b);
 
-  if (sparse_a.mat.cols() != sparse_b.mat.rows()) {
+  if (sparse_a->mat.cols() != sparse_b->mat.rows()) {
     throw py::value_error("spspmm dimension mismatch");
   }
 
-  Sparse out = (sparse_a.mat * sparse_b.mat).pruned();
+  Sparse out = (sparse_a->mat * sparse_b->mat).pruned();
   out.makeCompressed();
   return to_scipy_csc(out);
 }
@@ -874,21 +933,21 @@ static py::array_t<double> core_sparse_solve(py::object a,
                                               const std::string &preconditioner,
                                               int ilu_fill_factor,
                                               double ilu_drop_tol) {
-  SparseCscView sparse = map_sparse_csc(a, true);
+  const auto sparse = map_sparse_csc(a);
   std::unique_ptr<RowMatrix> owned_b;
   const Eigen::Ref<const RowMatrix> rhs = dense_row_ref(b, "b", owned_b);
 
-  if (sparse.mat.rows() != sparse.mat.cols()) {
+  if (sparse->mat.rows() != sparse->mat.cols()) {
     throw py::value_error("sparse solve requires square matrix");
   }
-  if (sparse.mat.rows() != rhs.rows()) {
+  if (sparse->mat.rows() != rhs.rows()) {
     throw py::value_error("sparse solve shape mismatch");
   }
 
   py::array_t<double> out_arr = make_output_array(rhs.rows(), rhs.cols());
   Eigen::Map<RowMatrix> out(out_arr.mutable_data(), rhs.rows(), rhs.cols());
 
-  const int effective_maxiter = maxiter > 0 ? maxiter : static_cast<int>(sparse.mat.rows() * 2);
+  const int effective_maxiter = maxiter > 0 ? maxiter : static_cast<int>(sparse->mat.rows() * 2);
   const double effective_tol = tol > 0.0 ? tol : 1e-8;
 
   if (method != "cg" && preconditioner != "none") {
@@ -897,8 +956,8 @@ static py::array_t<double> core_sparse_solve(py::object a,
 
   if (method == "auto" || method == "lu") {
     Eigen::SparseLU<Sparse> lu;
-    lu.analyzePattern(sparse.mat);
-    lu.factorize(sparse.mat);
+    lu.analyzePattern(sparse->mat);
+    lu.factorize(sparse->mat);
     if (lu.info() != Eigen::Success) {
       throw std::runtime_error("SparseLU factorization failed");
     }
@@ -912,7 +971,7 @@ static py::array_t<double> core_sparse_solve(py::object a,
   }
 
   if (method == "cg") {
-    dispatch_conjugate_gradient(sparse.mat, rhs, out, preconditioner, effective_tol, effective_maxiter,
+    dispatch_conjugate_gradient(sparse->mat, rhs, out, preconditioner, effective_tol, effective_maxiter,
                                 ilu_fill_factor, ilu_drop_tol);
     return out_arr;
   }
@@ -921,7 +980,7 @@ static py::array_t<double> core_sparse_solve(py::object a,
     Eigen::BiCGSTAB<Sparse> solver;
     solver.setTolerance(effective_tol);
     solver.setMaxIterations(effective_maxiter);
-    solver.compute(sparse.mat);
+    solver.compute(sparse->mat);
     if (solver.info() != Eigen::Success) {
       throw std::runtime_error("BiCGSTAB setup failed");
     }
@@ -951,25 +1010,25 @@ static py::dict core_sparse_solve_stats(py::object a,
     throw py::value_error("solve_stats is only supported for method='cg'");
   }
 
-  SparseCscView sparse = map_sparse_csc(a, true);
+  const auto sparse = map_sparse_csc(a);
   std::unique_ptr<RowMatrix> owned_b;
   const Eigen::Ref<const RowMatrix> rhs = dense_row_ref(b, "b", owned_b);
 
-  if (sparse.mat.rows() != sparse.mat.cols()) {
+  if (sparse->mat.rows() != sparse->mat.cols()) {
     throw py::value_error("sparse solve requires square matrix");
   }
-  if (rhs.rows() != sparse.mat.rows()) {
+  if (rhs.rows() != sparse->mat.rows()) {
     throw py::value_error("sparse solve shape mismatch");
   }
   if (rhs.cols() != 1) {
     throw py::value_error("solve_stats requires a single RHS column");
   }
 
-  const int effective_maxiter = maxiter > 0 ? maxiter : static_cast<int>(sparse.mat.rows() * 2);
+  const int effective_maxiter = maxiter > 0 ? maxiter : static_cast<int>(sparse->mat.rows() * 2);
   const double effective_tol = tol > 0.0 ? tol : 1e-8;
 
   const auto stats = dispatch_conjugate_gradient_stats(
-      sparse.mat, rhs.col(0), preconditioner, effective_tol, effective_maxiter, ilu_fill_factor,
+      sparse->mat, rhs.col(0), preconditioner, effective_tol, effective_maxiter, ilu_fill_factor,
       ilu_drop_tol);
 
   py::dict out;
@@ -979,11 +1038,11 @@ static py::dict core_sparse_solve_stats(py::object a,
 }
 
 static std::shared_ptr<SparseFactorized> core_sparse_factorize(py::object a) {
-  SparseCscView sparse = map_sparse_csc(a, true);
-  if (sparse.mat.rows() != sparse.mat.cols()) {
+  const auto sparse = map_sparse_csc(a);
+  if (sparse->mat.rows() != sparse->mat.cols()) {
     throw py::value_error("factorize requires square sparse matrix");
   }
-  return std::make_shared<SparseFactorized>(sparse.mat);
+  return std::make_shared<SparseFactorized>(sparse->mat);
 }
 
 static py::dict core_build_config() {
@@ -1020,7 +1079,10 @@ PYBIND11_MODULE(_core, m) {
   m.doc() = "pEigen core extension";
 
   py::class_<SparseFactorized, std::shared_ptr<SparseFactorized>>(m, "SparseFactorized")
-      .def("solve", &SparseFactorized::solve, py::arg("b"));
+      .def("solve", &SparseFactorized::solve, py::arg("b"))
+      .def_property_readonly("shape", [](const SparseFactorized &self) {
+        return py::make_tuple(self.rows(), self.cols());
+      });
 
   m.def("matmul", &core_matmul, py::arg("a"), py::arg("b"));
   m.def("solve", &core_solve, py::arg("a"), py::arg("b"), py::arg("method") = "auto");

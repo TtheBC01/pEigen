@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from . import _core
+from ._utils import as_real_float64
 
 
 def _require_scipy():
@@ -18,7 +19,7 @@ def _require_scipy():
 
 
 def _as_2d_rhs(b):
-    rhs = np.ascontiguousarray(np.asarray(b, dtype=np.float64))
+    rhs = np.ascontiguousarray(as_real_float64(b, "b"))
     if rhs.ndim == 1:
         return rhs[:, None], True
     if rhs.ndim == 2:
@@ -31,7 +32,7 @@ def spmm(a, b):
     sp = _require_scipy()
     if not sp.issparse(a):
         a = sp.csc_matrix(a)
-    return _core.spmm(a, np.asarray(b, dtype=np.float64))
+    return _core.spmm(a, as_real_float64(b, "b"))
 
 
 def spspmm(a, b):
@@ -103,14 +104,34 @@ def solve_stats(
     )
 
 
-def factorize(a, *, method: str = "auto"):
+class SparseFactorized:
+    """Reusable sparse LU factorization (Eigen ``SparseLU``).
+
+    Factorizes ``a`` once; :meth:`solve` can then be called many times with different right-hand
+    sides. ``b`` may be 1D (returns 1D) or 2D with one system per column (returns 2D).
+    """
+
+    def __init__(self, a, *, method: str = "auto"):
+        if method != "auto":
+            raise ValueError("only method='auto' is currently supported")
+        sp = _require_scipy()
+        if not sp.issparse(a):
+            a = sp.csc_matrix(a)
+        self._impl = _core.sparse_factorize(a)
+
+    @property
+    def shape(self) -> tuple[int, int]:
+        return tuple(self._impl.shape)
+
+    def solve(self, b):
+        rhs, squeezed = _as_2d_rhs(b)
+        x = self._impl.solve(rhs)
+        return x[:, 0] if squeezed else x
+
+
+def factorize(a, *, method: str = "auto") -> SparseFactorized:
     """Factorize sparse matrix and return reusable solver object."""
-    if method != "auto":
-        raise ValueError("only method='auto' is currently supported")
-    sp = _require_scipy()
-    if not sp.issparse(a):
-        a = sp.csc_matrix(a)
-    return _core.sparse_factorize(a)
+    return SparseFactorized(a, method=method)
 
 
 def to_dense(a):

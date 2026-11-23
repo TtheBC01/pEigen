@@ -63,6 +63,8 @@ x2 = fac.solve(rhs)
 
 ## API overview
 
+All routines operate on real `float64` data. Real inputs of other dtypes (ints, `float32`) are converted to `float64`; complex inputs raise `TypeError` rather than silently discarding the imaginary part.
+
 ### `peigen.linalg`
 
 - `matmul(a, b)`
@@ -99,7 +101,7 @@ x = linalg.solve(A, b, method="eigen")    # Eigen PartialPivLU
 **Requirements and behavior:**
 
 - `A` must be square; `b` must be 1D with length `n` or 2D with shape `(n, k)`.
-- Raises `ValueError` if dimensions mismatch or if `A` is singular / numerically ill-conditioned (LAPACK `info > 0` or near-zero LU diagonal).
+- Raises `ValueError` if dimensions mismatch or if `A` is singular / numerically ill-conditioned (LAPACK `info > 0`, or for `method="eigen"` a smallest LU pivot below `n * eps` times the largest, so the check is independent of the matrix's overall scale).
 - Column-major staging for `A` is handled once inside the extension; callers do not need to pass Fortran-ordered arrays.
 
 On macOS and Linux release wheels with LAPACK linked, `method="auto"` typically matches or exceeds NumPy performance for moderate and large systems.
@@ -158,7 +160,7 @@ n = linalg.norm(A)
 
 ### `peigen.sparse`
 
-Requires SciPy (`pip install peigen[sparse]`). Sparse matrices are accepted in SciPy format; inputs are converted to CSC internally when needed.
+Requires SciPy (`pip install peigen[sparse]`). Sparse matrices are accepted in any SciPy format (`*_matrix` or `*_array`); inputs are converted to CSC internally when needed. `int32` or `int64` index arrays and real data of any dtype are accepted (converted to `int32` / `float64` copies when needed). Non-canonical inputs (unsorted or duplicate entries) are canonicalized on a copy; the caller's matrix is never modified. Matrices whose dimensions or nonzero count exceed the 32-bit range raise `ValueError`.
 
 - `spmm(a, b)`
 - `spspmm(a, b)`
@@ -287,11 +289,11 @@ X = fac.solve(B)
 - Raises `RuntimeError` if factorization fails; `ValueError` on shape mismatch at solve time.
 - The factorized object holds the pattern and numeric factors; reuse it when solving many systems with the same `A`.
 
-A thin wrapper is also available as `peigen.decomp.SparseFactorized(A)`.
+The returned object is a `peigen.sparse.SparseFactorized` (also exported as `peigen.decomp.SparseFactorized`, so `decomp.SparseFactorized(A)` is equivalent) and exposes `.shape`.
 
 ### `peigen.decomp`
 
-- `SVD(a)`
+- `SVD(a, full_matrices=False)` with `.solve(b, rcond=None)`: minimum-norm least squares via the pseudoinverse. Singular values `<= rcond * max(s)` are treated as zero; `rcond` is relative, as in `numpy.linalg.lstsq`, and defaults to `eps * max(M, N)`.
 - `QR(a)`
 - `SparseFactorized(a)`
 

@@ -5,17 +5,18 @@ from __future__ import annotations
 import numpy as np
 
 from . import _core
+from ._utils import as_real_float64
 
 
 def _as_2d_float64(a: np.ndarray | list[float] | list[list[float]]) -> np.ndarray:
-    arr = np.asarray(a, dtype=np.float64)
+    arr = as_real_float64(a)
     if arr.ndim != 2:
         raise ValueError("input must be a 2D array")
     return arr
 
 
 def _as_2d_for_factorization(a: np.ndarray | list[float] | list[list[float]]) -> np.ndarray:
-    arr = np.asarray(a, dtype=np.float64)
+    arr = as_real_float64(a)
     if arr.ndim != 2:
         raise ValueError("input must be a 2D array")
     # Column-major layout is preferred for LAPACK factorization paths.
@@ -24,8 +25,8 @@ def _as_2d_for_factorization(a: np.ndarray | list[float] | list[list[float]]) ->
 
 def matmul(a, b):
     """Matrix multiplication for 2D dense arrays."""
-    arr_a = np.ascontiguousarray(np.asarray(a, dtype=np.float64))
-    arr_b = np.ascontiguousarray(np.asarray(b, dtype=np.float64))
+    arr_a = np.ascontiguousarray(as_real_float64(a, "a"))
+    arr_b = np.ascontiguousarray(as_real_float64(b, "b"))
     if arr_a.ndim != 2 or arr_b.ndim != 2:
         raise ValueError("inputs must be 2D arrays")
     return _core.matmul(arr_a, arr_b)
@@ -36,7 +37,7 @@ def solve(a, b, *, assume_a: str = "gen", method: str = "auto"):
     if assume_a != "gen":
         raise ValueError("assume_a currently only supports 'gen'")
     lhs = _as_2d_float64(a)
-    rhs = np.asarray(b, dtype=np.float64)
+    rhs = as_real_float64(b, "b")
     if rhs.ndim == 1:
         rhs = rhs[:, None]
         squeezed = True
@@ -82,7 +83,11 @@ def eigh_compute(a, *, lower: bool = True, method: str = "auto") -> float:
 
 def norm(a, ord=None, axis=None, keepdims: bool = False):
     """Norm wrapper with fast path for common Frobenius case."""
-    arr = np.asarray(a, dtype=np.float64)
+    arr = np.asarray(a)
+    if np.iscomplexobj(arr):
+        # Complex norms are well defined; defer to NumPy rather than dropping the imaginary part.
+        return np.linalg.norm(arr, ord=ord, axis=axis, keepdims=keepdims)
+    arr = np.asarray(arr, dtype=np.float64)
     if axis is None and ord is None and arr.ndim == 2:
         if not arr.flags.c_contiguous:
             arr = np.ascontiguousarray(arr)
