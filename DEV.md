@@ -42,9 +42,21 @@ Run benchmark scripts:
 ```bash
 python benchmarks/bench_dense.py
 python benchmarks/bench_sparse.py
+python benchmarks/bench_cholesky.py          # add --quick for a short run
 # or
 scripts/bench_report.sh
 ```
+
+`bench_cholesky.py` also compares against CHOLMOD when scikit-sparse is installed. It needs SuiteSparse and builds from source on most platforms:
+
+```bash
+brew install suite-sparse          # or your platform's SuiteSparse package
+SUITESPARSE_INCLUDE_DIR=/opt/homebrew/include/suitesparse \
+SUITESPARSE_LIBRARY_DIR=/opt/homebrew/lib \
+python -m pip install scikit-sparse
+```
+
+CHOLMOD uses OpenMP and a multithreaded BLAS; for a single-core comparison, run with `OMP_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 OPENBLAS_NUM_THREADS=1`.
 
 ## Build wheel locally
 

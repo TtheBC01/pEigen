@@ -1,9 +1,12 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <algorithm>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -748,6 +751,274 @@ class SparseFactorized {
   std::unique_ptr<Eigen::SparseLU<Sparse>> lu_;
 };
 
+// ---------------------------------------------------------------------------------------------
+// Sparse Cholesky (SimplicialLDLT / SimplicialLLT)
+// ---------------------------------------------------------------------------------------------
+
+[[noreturn]] static void raise_linalg_error(const std::string &msg) {
+  const py::object exc = py::module_::import("numpy.linalg").attr("LinAlgError");
+  PyErr_SetString(exc.ptr(), msg.c_str());
+  throw py::error_already_set();
+}
+
+// Type-erased interface over the four (LDLT|LLT) x (AMD|natural) Eigen solver instantiations.
+class CholeskyBackend {
+ public:
+  virtual ~CholeskyBackend() = default;
+  virtual void analyze(const Sparse &a) = 0;
+  virtual void factorize(const Sparse &a, double shift) = 0;
+  virtual Eigen::ComputationInfo info() const = 0;
+  // Solve A x = b for all columns of b at once; writes x (row-major, same shape as b) into out.
+  virtual void solve_into(const Eigen::Ref<const RowMatrix> &b, double *out) const = 0;
+  virtual std::pair<double, double> slogdet() const = 0;
+  virtual Eigen::Index factor_nnz() const = 0;
+};
+
+template <typename Solver, bool IsLDLT>
+class CholeskyBackendImpl final : public CholeskyBackend {
+ public:
+  void analyze(const Sparse &a) override { solver_.analyzePattern(a); }
+
+  void factorize(const Sparse &a, double shift) override {
+    solver_.setShift(shift);
+    solver_.factorize(a);
+  }
+
+  Eigen::ComputationInfo info() const override { return solver_.info(); }
+
+  // Blocked multi-RHS solve. Eigen's built-in solve handles one column at a time, re-reading the
+  // whole factor per RHS. Keeping the RHS block row-major lets each nonzero L(i, j) update a
+  // contiguous row of k values, so L is streamed once regardless of k.
+  //
+  // Factor layout (Eigen SimplicialCholesky): L is column-major; for LLT the diagonal is the first
+  // entry of each column, for LDLT L is unit-lower (diagonal not stored) and D is kept separately.
+  void solve_into(const Eigen::Ref<const RowMatrix> &b, double *out) const override {
+    const auto &L = solver_.matrixL().nestedExpression();
+    const Eigen::Index n = L.rows();
+    const Eigen::Index k = b.cols();
+    const auto &perm = solver_.permutationP();
+    const bool permuted = perm.size() > 0;
+
+    // x = P b   (Eigen convention: (P b)[perm[i]] = b[i])
+    std::vector<double> x(static_cast<std::size_t>(n * k));
+    for (Eigen::Index i = 0; i < n; ++i) {
+      const Eigen::Index dst = permuted ? perm.indices()[i] : i;
+      std::copy_n(&b(i, 0), k, &x[static_cast<std::size_t>(dst * k)]);
+    }
+
+    // Raw CSC access (columns may be uncompressed: use innerNonZeroPtr when present).
+    const int *Lp = L.outerIndexPtr();
+    const int *Lnz = L.innerNonZeroPtr();
+    const int *Li = L.innerIndexPtr();
+    const double *Lx = L.valuePtr();
+    auto col_end = [&](Eigen::Index j) -> int { return Lnz ? Lp[j] + Lnz[j] : Lp[j + 1]; };
+
+    // Reciprocal diagonal: D^{-1} for LDLT, diag(L)^{-1} for LLT (computed off the critical path).
+    Vector inv_diag(n);
+    if constexpr (IsLDLT) {
+      inv_diag = solver_.vectorD().cwiseInverse();
+    } else {
+      for (Eigen::Index j = 0; j < n; ++j) inv_diag[j] = 1.0 / Lx[Lp[j]];
+    }
+    constexpr int skip_diag = IsLDLT ? 0 : 1;  // LLT stores the diagonal first in each column
+    double *X = x.data();
+
+    if (k == 1) {
+      // Forward: L y = x
+      for (Eigen::Index j = 0; j < n; ++j) {
+        if constexpr (!IsLDLT) X[j] *= inv_diag[j];
+        const double xj = X[j];
+        if (xj != 0.0) {
+          for (int p = Lp[j] + skip_diag, e = col_end(j); p < e; ++p) X[Li[p]] -= Lx[p] * xj;
+        }
+      }
+      if constexpr (IsLDLT) {
+        for (Eigen::Index j = 0; j < n; ++j) X[j] *= inv_diag[j];
+      }
+      // Backward: L^T z = y
+      for (Eigen::Index j = n - 1; j >= 0; --j) {
+        double acc = X[j];
+        for (int p = Lp[j] + skip_diag, e = col_end(j); p < e; ++p) acc -= Lx[p] * X[Li[p]];
+        if constexpr (!IsLDLT) acc *= inv_diag[j];
+        X[j] = acc;
+      }
+    } else {
+      // Forward: L y = x (column-oriented: scatter column j into later rows).
+      for (Eigen::Index j = 0; j < n; ++j) {
+        double *xj = X + j * k;
+        if constexpr (!IsLDLT) {
+          const double inv = inv_diag[j];
+          for (Eigen::Index c = 0; c < k; ++c) xj[c] *= inv;
+        }
+        for (int p = Lp[j] + skip_diag, e = col_end(j); p < e; ++p) {
+          const double v = Lx[p];
+          double *xi = X + static_cast<Eigen::Index>(Li[p]) * k;
+          for (Eigen::Index c = 0; c < k; ++c) xi[c] -= v * xj[c];
+        }
+      }
+      if constexpr (IsLDLT) {
+        for (Eigen::Index j = 0; j < n; ++j) {
+          const double inv = inv_diag[j];
+          double *xj = X + j * k;
+          for (Eigen::Index c = 0; c < k; ++c) xj[c] *= inv;
+        }
+      }
+      // Backward: L^T z = y (row j of L^T is column j of L: gather from later rows).
+      for (Eigen::Index j = n - 1; j >= 0; --j) {
+        double *xj = X + j * k;
+        for (int p = Lp[j] + skip_diag, e = col_end(j); p < e; ++p) {
+          const double v = Lx[p];
+          const double *xi = X + static_cast<Eigen::Index>(Li[p]) * k;
+          for (Eigen::Index c = 0; c < k; ++c) xj[c] -= v * xi[c];
+        }
+        if constexpr (!IsLDLT) {
+          const double inv = inv_diag[j];
+          for (Eigen::Index c = 0; c < k; ++c) xj[c] *= inv;
+        }
+      }
+    }
+
+    // out = P^{-1} z   (out[i] = z[perm[i]])
+    for (Eigen::Index i = 0; i < n; ++i) {
+      const Eigen::Index src = permuted ? perm.indices()[i] : i;
+      std::copy_n(X + src * k, k, out + i * k);
+    }
+  }
+
+  // (sign, log|det|) of the factorized matrix, as numpy.linalg.slogdet. The fill-reducing
+  // permutation is symmetric (P A P^T), so it does not change the determinant.
+  std::pair<double, double> slogdet() const override {
+    if constexpr (IsLDLT) {
+      const Vector d = solver_.vectorD();
+      double sign = 1.0;
+      double logabs = 0.0;
+      for (Eigen::Index i = 0; i < d.size(); ++i) {
+        if (d[i] == 0.0) {
+          return {0.0, -std::numeric_limits<double>::infinity()};
+        }
+        if (d[i] < 0.0) {
+          sign = -sign;
+        }
+        logabs += std::log(std::abs(d[i]));
+      }
+      return {sign, logabs};
+    } else {
+      const Vector diag = solver_.matrixL().nestedExpression().diagonal();
+      return {1.0, 2.0 * diag.array().log().sum()};
+    }
+  }
+
+  Eigen::Index factor_nnz() const override { return solver_.matrixL().nestedExpression().nonZeros(); }
+
+ private:
+  Solver solver_;
+};
+
+static std::unique_ptr<CholeskyBackend> make_cholesky_backend(const std::string &mode, const std::string &ordering) {
+  using Amd = Eigen::AMDOrdering<int>;
+  using Natural = Eigen::NaturalOrdering<int>;
+  if (ordering != "amd" && ordering != "natural") {
+    throw py::value_error("ordering must be one of: amd, natural");
+  }
+  const bool amd = ordering == "amd";
+  if (mode == "ldlt") {
+    if (amd) return std::make_unique<CholeskyBackendImpl<Eigen::SimplicialLDLT<Sparse, Eigen::Lower, Amd>, true>>();
+    return std::make_unique<CholeskyBackendImpl<Eigen::SimplicialLDLT<Sparse, Eigen::Lower, Natural>, true>>();
+  }
+  if (mode == "llt") {
+    if (amd) return std::make_unique<CholeskyBackendImpl<Eigen::SimplicialLLT<Sparse, Eigen::Lower, Amd>, false>>();
+    return std::make_unique<CholeskyBackendImpl<Eigen::SimplicialLLT<Sparse, Eigen::Lower, Natural>, false>>();
+  }
+  throw py::value_error("mode must be one of: ldlt, llt");
+}
+
+// Reusable sparse Cholesky factorization of a symmetric matrix (lower triangle referenced).
+//
+// The symbolic analysis (ordering + elimination tree) is computed once; refactorize() reruns only
+// the numeric phase for a matrix with an identical sparsity pattern. Eigen does not verify the
+// pattern itself and a mismatch would write past the analyzed storage, so the pattern is stored
+// and checked here.
+class SparseCholesky {
+ public:
+  SparseCholesky(py::object a, const std::string &mode, const std::string &ordering, double shift)
+      : backend_(make_cholesky_backend(mode, ordering)), mode_(mode), ordering_(ordering) {
+    const auto view = map_sparse_csc(std::move(a));
+    if (view->mat.rows() != view->mat.cols()) {
+      throw py::value_error("cholesky requires a square sparse matrix");
+    }
+    n_ = view->mat.rows();
+    outer_.assign(view->indptr.data(), view->indptr.data() + view->indptr.size());
+    inner_.assign(view->indices.data(), view->indices.data() + view->mat.nonZeros());
+
+    const Sparse mat = view->mat;
+    backend_->analyze(mat);
+    factorize_checked(mat, shift);
+  }
+
+  void refactorize(py::object a, std::optional<double> shift) {
+    const auto view = map_sparse_csc(std::move(a));
+    const auto &m = view->mat;
+    const bool same_pattern =
+        m.rows() == n_ && m.cols() == n_ && static_cast<std::size_t>(m.nonZeros()) == inner_.size() &&
+        std::equal(outer_.begin(), outer_.end(), view->indptr.data()) &&
+        std::equal(inner_.begin(), inner_.end(), view->indices.data());
+    if (!same_pattern) {
+      throw py::value_error(
+          "refactorize requires the same sparsity pattern as the original matrix; "
+          "create a new factorization with cholesky() instead");
+    }
+    const Sparse mat = m;
+    factorize_checked(mat, shift.value_or(shift_));
+  }
+
+  py::array_t<double> solve(const py::array_t<double, py::array::forcecast> &b) const {
+    std::unique_ptr<RowMatrix> owned_b;
+    const Eigen::Ref<const RowMatrix> rhs = dense_row_ref(b, "b", owned_b);
+    if (rhs.rows() != n_) {
+      throw py::value_error("factorized matrix and rhs shape mismatch");
+    }
+    py::array_t<double> out = make_output_array(rhs.rows(), rhs.cols());
+    double *out_ptr = out.mutable_data();
+    {
+      py::gil_scoped_release release;
+      backend_->solve_into(rhs, out_ptr);
+    }
+    return out;
+  }
+
+  py::tuple slogdet() const {
+    const auto res = backend_->slogdet();
+    return py::make_tuple(res.first, res.second);
+  }
+
+  Eigen::Index n() const { return n_; }
+  Eigen::Index factor_nnz() const { return backend_->factor_nnz(); }
+  const std::string &mode() const { return mode_; }
+  const std::string &ordering() const { return ordering_; }
+  double shift() const { return shift_; }
+
+ private:
+  void factorize_checked(const Sparse &mat, double shift) {
+    {
+      py::gil_scoped_release release;
+      backend_->factorize(mat, shift);
+    }
+    shift_ = shift;
+    if (backend_->info() != Eigen::Success) {
+      raise_linalg_error(mode_ == "llt" ? "matrix is not positive definite (Cholesky LLT failed)"
+                                        : "matrix is singular (Cholesky LDLT hit a zero pivot)");
+    }
+  }
+
+  std::unique_ptr<CholeskyBackend> backend_;
+  std::vector<int> outer_;
+  std::vector<int> inner_;
+  Eigen::Index n_ = 0;
+  std::string mode_;
+  std::string ordering_;
+  double shift_ = 0.0;
+};
+
 static py::array_t<double> core_spmm(py::object a, const py::array_t<double, py::array::forcecast> &b) {
   const auto sparse = map_sparse_csc(a);
   std::unique_ptr<RowMatrix> owned_b;
@@ -1116,5 +1387,17 @@ PYBIND11_MODULE(_core, m) {
         py::arg("ilu_fill_factor") = 10,
         py::arg("ilu_drop_tol") = 1e-4);
   m.def("sparse_factorize", &core_sparse_factorize, py::arg("a"));
+
+  py::class_<SparseCholesky>(m, "SparseCholesky")
+      .def(py::init<py::object, const std::string &, const std::string &, double>(), py::arg("a"),
+           py::arg("mode") = "ldlt", py::arg("ordering") = "amd", py::arg("shift") = 0.0)
+      .def("refactorize", &SparseCholesky::refactorize, py::arg("a"), py::arg("shift") = py::none())
+      .def("solve", &SparseCholesky::solve, py::arg("b"))
+      .def("slogdet", &SparseCholesky::slogdet)
+      .def_property_readonly("shape", [](const SparseCholesky &self) { return py::make_tuple(self.n(), self.n()); })
+      .def_property_readonly("factor_nnz", &SparseCholesky::factor_nnz)
+      .def_property_readonly("mode", &SparseCholesky::mode)
+      .def_property_readonly("ordering", &SparseCholesky::ordering)
+      .def_property_readonly("shift", &SparseCholesky::shift);
   m.def("build_config", &core_build_config);
 }

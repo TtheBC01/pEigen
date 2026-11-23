@@ -56,10 +56,18 @@ def solve(
     ilu_fill_factor: int = 10,
     ilu_drop_tol: float = 1e-4,
 ):
-    """Solve sparse linear system a x = b."""
+    """Solve sparse linear system a x = b.
+
+    ``method`` is one of ``"auto"``/``"lu"`` (SparseLU), ``"cholesky"`` (SimplicialLDLT; ``a`` must
+    be symmetric, only its lower triangle is read), ``"cg"`` or ``"bicgstab"``.
+    """
     sp = _require_scipy()
     if not sp.issparse(a):
         a = sp.csc_matrix(a)
+    if method == "cholesky":
+        if preconditioner != "none":
+            raise ValueError("preconditioner is only supported for method='cg'")
+        return SparseCholesky(a).solve(b)
     rhs, squeezed = _as_2d_rhs(b)
     x = _core.sparse_solve(
         a,
@@ -132,6 +140,90 @@ class SparseFactorized:
 def factorize(a, *, method: str = "auto") -> SparseFactorized:
     """Factorize sparse matrix and return reusable solver object."""
     return SparseFactorized(a, method=method)
+
+
+class SparseCholesky:
+    """Reusable sparse Cholesky factorization of a symmetric matrix (Eigen ``SimplicialLDLT/LLT``).
+
+    Computes ``P (A + shift*I) P^T = L D L^T`` (``mode="ldlt"``, default) or ``= L L^T``
+    (``mode="llt"``) with a fill-reducing permutation ``P`` (``ordering="amd"``, default, or
+    ``"natural"``). Only one triangle of ``a`` is read (``lower=True`` reads the lower triangle), so
+    passing just that triangle is fine.
+
+    ``mode="llt"`` requires ``A + shift*I`` to be positive definite. ``mode="ldlt"`` also factorizes
+    some indefinite matrices, but it does not pivot for stability, so it is only reliable for
+    symmetric positive (or negative) definite matrices.
+
+    Raises ``numpy.linalg.LinAlgError`` if the factorization breaks down (LLT on a matrix that is
+    not positive definite, or a zero pivot).
+    """
+
+    def __init__(self, a, *, mode: str = "ldlt", ordering: str = "amd", lower: bool = True, shift: float = 0.0):
+        self._lower = bool(lower)
+        self._impl = _core.SparseCholesky(self._prepare(a), mode, ordering, float(shift))
+
+    def _prepare(self, a):
+        sp = _require_scipy()
+        if not sp.issparse(a):
+            a = sp.csc_matrix(a)
+        # Eigen reads the lower triangle; the upper triangle of A is the lower triangle of A.T.
+        return a if self._lower else a.T
+
+    @property
+    def shape(self) -> tuple[int, int]:
+        return tuple(self._impl.shape)
+
+    @property
+    def mode(self) -> str:
+        return self._impl.mode
+
+    @property
+    def ordering(self) -> str:
+        return self._impl.ordering
+
+    @property
+    def shift(self) -> float:
+        return self._impl.shift
+
+    @property
+    def factor_nnz(self) -> int:
+        """Number of stored nonzeros in the factor ``L`` (a measure of fill-in)."""
+        return int(self._impl.factor_nnz)
+
+    def solve(self, b):
+        """Solve ``(A + shift*I) x = b``; ``b`` may be 1D or 2D (one system per column)."""
+        rhs = as_real_float64(b, "b")
+        if rhs.ndim == 1:
+            return self._impl.solve(rhs[:, None])[:, 0]
+        if rhs.ndim == 2:
+            return self._impl.solve(rhs)
+        raise ValueError("rhs must be a 1D or 2D array")
+
+    def refactorize(self, a, *, shift: float | None = None) -> "SparseCholesky":
+        """Recompute the numeric factorization for new values with the *same* sparsity pattern.
+
+        Reuses the symbolic analysis (ordering and elimination tree), which is typically much
+        cheaper than a fresh :func:`cholesky`. ``shift=None`` keeps the current shift. Raises
+        ``ValueError`` if the sparsity pattern differs from the original matrix.
+        """
+        self._impl.refactorize(self._prepare(a), None if shift is None else float(shift))
+        return self
+
+    def slogdet(self) -> tuple[float, float]:
+        """Return ``(sign, logabsdet)`` of ``A + shift*I``, like :func:`numpy.linalg.slogdet`."""
+        return tuple(self._impl.slogdet())
+
+    def logdet(self) -> float:
+        """Return ``log(det(A + shift*I))``; raises ``ValueError`` if the determinant is not positive."""
+        sign, logabsdet = self.slogdet()
+        if sign <= 0:
+            raise ValueError("determinant is not positive; use slogdet()")
+        return logabsdet
+
+
+def cholesky(a, *, mode: str = "ldlt", ordering: str = "amd", lower: bool = True, shift: float = 0.0) -> SparseCholesky:
+    """Factorize a sparse symmetric matrix; see :class:`SparseCholesky`."""
+    return SparseCholesky(a, mode=mode, ordering=ordering, lower=lower, shift=shift)
 
 
 def to_dense(a):

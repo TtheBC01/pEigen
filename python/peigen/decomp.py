@@ -54,3 +54,4 @@ class QR:
 
 # Same class as ``peigen.sparse.factorize`` returns; re-exported here for discoverability.
 SparseFactorized = sparse.SparseFactorized
+SparseCholesky = sparse.SparseCholesky

@@ -167,6 +167,7 @@ Requires SciPy (`pip install peigen[sparse]`). Sparse matrices are accepted in a
 - `solve(a, b, method="auto", tol=1e-8, maxiter=None, preconditioner="none", ilu_fill_factor=10, ilu_drop_tol=1e-4)`
 - `solve_stats(a, b, method="cg", ...)`
 - `factorize(a, method="auto")` → `SparseFactorized`
+- `cholesky(a, mode="ldlt", ordering="amd", lower=True, shift=0.0)` → `SparseCholesky`
 - `to_dense(a)`
 - `from_coo(data, row, col, shape)`
 
@@ -220,6 +221,7 @@ x = sparse.solve(A, b, method="bicgstab", tol=1e-8, maxiter=5000)
 |-----------|-------------|
 | `method="auto"` | Direct solve via Eigen `SparseLU` (same as `method="lu"`). |
 | `method="lu"` | Factorize with `SparseLU` and solve each RHS column. |
+| `method="cholesky"` | Symmetric `A` only (lower triangle read): one-shot `SimplicialLDLT`, equivalent to `cholesky(A).solve(b)`. Usually much faster than LU for SPD systems. |
 | `method="cg"` | Conjugate gradient for self-adjoint (symmetric) `A`. |
 | `method="bicgstab"` | BiCGSTAB for general square `A`. |
 | `tol=1e-8` | Relative residual tolerance for iterative methods (`norm(Ax-b)/norm(b)`). |
@@ -242,6 +244,7 @@ x = sparse.solve(A, b, method="bicgstab", tol=1e-8, maxiter=5000)
 | Method | Matrix structure | Backend |
 |--------|------------------|---------|
 | `"lu"` / `"auto"` | General square | Eigen `SparseLU` |
+| `"cholesky"` | Symmetric positive definite | Eigen `SimplicialLDLT` |
 | `"cg"` | Symmetric (SPD in practice) | Eigen `ConjugateGradient` |
 | `"bicgstab"` | General square, nonsymmetric | Eigen `BiCGSTAB` |
 
@@ -291,11 +294,53 @@ X = fac.solve(B)
 
 The returned object is a `peigen.sparse.SparseFactorized` (also exported as `peigen.decomp.SparseFactorized`, so `decomp.SparseFactorized(A)` is equivalent) and exposes `.shape`.
 
+#### Sparse Cholesky (`cholesky`)
+
+Factorize a sparse symmetric positive definite matrix once and reuse it. Wraps Eigen's `SimplicialLDLT` / `SimplicialLLT` with a fill-reducing ordering, so it needs no extra native dependency (no SuiteSparse/CHOLMOD) and is MPL2-licensed.
+
+```python
+fac = sparse.cholesky(K)                 # P K P^T = L D L^T, AMD ordering
+x = fac.solve(b)                         # 1D or 2D b; many RHS are solved in one blocked pass
+sign, logdet = fac.slogdet()             # like numpy.linalg.slogdet, without overflow
+
+fac.refactorize(K_new)                   # new values, same sparsity pattern: reuses the symbolic analysis
+fac.refactorize(K_new, shift=1e-6)       # factorize K_new + 1e-6 * I
+
+reg = sparse.cholesky(K, shift=0.1)      # factorize K + 0.1 * I (regularization / GP jitter)
+up = sparse.cholesky(sp.triu(K), lower=False)  # only one triangle is read
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `mode="ldlt"` | `L D L^T` (no square roots). Default. Also factorizes some symmetric indefinite matrices, but without stability pivoting, so prefer SPD input. |
+| `mode="llt"` | Standard Cholesky `L L^T`; requires positive definiteness. |
+| `ordering="amd"` | Approximate minimum degree fill-reducing ordering. Default. |
+| `ordering="natural"` | No reordering (useful only for banded matrices or debugging). |
+| `lower=True` | Read the lower triangle of `a`. `lower=False` reads the upper triangle. |
+| `shift=0.0` | Factorize `a + shift * I`. |
+
+`SparseCholesky` methods and properties: `solve(b)`, `refactorize(a, *, shift=None)` (`None` keeps the current shift), `slogdet()`, `logdet()`, `shape`, `mode`, `ordering`, `shift`, and `factor_nnz` (stored nonzeros in `L`, a measure of fill-in).
+
+**Requirements and behavior:**
+
+- `a` must be square. It is not checked for symmetry: only the selected triangle is referenced, as with `linalg.eigh`.
+- Raises `numpy.linalg.LinAlgError` if factorization breaks down: `mode="llt"` on a matrix that is not positive definite, or a zero pivot.
+- `refactorize` raises `ValueError` if the sparsity pattern (including explicit zeros) differs from the original matrix; create a new factorization instead.
+- `logdet()` raises `ValueError` if the determinant is not positive; use `slogdet()` for indefinite input.
+- Also exported as `peigen.decomp.SparseCholesky`.
+
+**Performance.** `benchmarks/bench_cholesky.py` compares against SciPy SuperLU (`splu`) and, if scikit-sparse is installed, CHOLMOD. Eigen's factorization is *simplicial* (no dense supernode kernels), which sets its range:
+
+- **Low-fill problems (2D meshes, graph Laplacians):** factorization is 1.8–6× faster than SciPy's default `splu`, 1.2–2× faster than `splu` configured for symmetric matrices, and about 10% faster than CHOLMOD's simplicial mode. Solves with many right-hand sides use a blocked kernel and were the fastest of all tested solvers on these problems.
+- **High-fill problems (3D meshes, very large 2D grids):** supernodal solvers win. CHOLMOD's default mode was about 4× faster on a 512² grid and 25–45× faster on a 40³ grid, even single-threaded, and symmetric-mode `splu` was up to about 1.8× faster. pEigen is still about 1.7× faster than default `splu` there.
+- Single-RHS solves are about 2× slower than CHOLMOD's.
+
 ### `peigen.decomp`
 
 - `SVD(a, full_matrices=False)` with `.solve(b, rcond=None)`: minimum-norm least squares via the pseudoinverse. Singular values `<= rcond * max(s)` are treated as zero; `rcond` is relative, as in `numpy.linalg.lstsq`, and defaults to `eps * max(M, N)`.
 - `QR(a)`
 - `SparseFactorized(a)`
+- `SparseCholesky(a, mode="ldlt", ...)`
 
 ## Runtime build report
 
