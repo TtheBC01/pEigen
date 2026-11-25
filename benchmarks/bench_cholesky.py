@@ -169,6 +169,13 @@ def solvers() -> list[Solver]:
             lambda f, a: f.refactorize(a),
             lambda f: f.factor_nnz,
         ),
+        Solver(
+            "peigen multifrontal",
+            lambda a: sparse.cholesky(a, mode="multifrontal"),
+            lambda f, b: f.solve(b),
+            lambda f, a: f.refactorize(a),
+            lambda f: f.factor_nnz,
+        ),
     ]
     if cholmod is not None:
         for label, order, mode in (
@@ -307,6 +314,23 @@ def _print_summary(rows_meta, results, names):
     print()
     print("Summary: peigen ldlt speed relative to alternatives (>1x = peigen faster)")
     print("'refactor vs own factor' = how much a same-pattern refactorize saves over a fresh cholesky().")
+    print(tabulate(rows, headers=headers, tablefmt=TABLEFMT, disable_numparse=True))
+
+    if "peigen multifrontal" not in names:
+        return
+    others = ["peigen ldlt"] + cm
+    headers = ["problem"]
+    for metric in ("factor", "refactor", "solve 1", "solve many"):
+        headers += [f"{metric} vs {n}" for n in others]
+    rows = []
+    for (family, size, _, _), res in zip(rows_meta, results):
+        mf = res["peigen multifrontal"]
+        row = [f"{family} {size}"]
+        for attr in ("factor_ms", "refactor_ms", "solve1_ms", "solve_many_ms"):
+            row += [_ratio(getattr(res[n], attr), getattr(mf, attr)) for n in others]
+        rows.append(row)
+    print()
+    print("Summary: peigen multifrontal speed relative to alternatives (>1x = multifrontal faster)")
     print(tabulate(rows, headers=headers, tablefmt=TABLEFMT, disable_numparse=True))
 
 

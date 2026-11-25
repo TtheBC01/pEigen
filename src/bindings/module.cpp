@@ -2,6 +2,7 @@
 #include <cstring>
 #include <limits>
 #include <algorithm>
+#include <array>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -750,7 +751,8 @@ class SparseFactorized {
   throw py::error_already_set();
 }
 
-// Type-erased interface over the four (LDLT|LLT) x (AMD|natural) Eigen solver instantiations.
+// Type-erased interface over the (simplicial LDLT | simplicial LLT | multifrontal LDLT) x
+// (AMD | natural) Eigen solver instantiations.
 class CholeskyBackend {
  public:
   virtual ~CholeskyBackend() = default;
@@ -761,6 +763,8 @@ class CholeskyBackend {
   virtual void solve_into(const Eigen::Ref<const RowMatrix> &b, double *out) const = 0;
   virtual std::pair<double, double> slogdet() const = 0;
   virtual Eigen::Index factor_nnz() const = 0;
+  // (positive, negative, zero) pivot counts: the inertia of the factorized matrix by Sylvester's law.
+  virtual std::array<Eigen::Index, 3> inertia() const = 0;
 };
 
 template <typename Solver, bool IsLDLT>
@@ -899,8 +903,71 @@ class CholeskyBackendImpl final : public CholeskyBackend {
 
   Eigen::Index factor_nnz() const override { return solver_.matrixL().nestedExpression().nonZeros(); }
 
+  std::array<Eigen::Index, 3> inertia() const override {
+    const Eigen::Index n = solver_.rows();
+    if constexpr (IsLDLT) {
+      const Vector d = solver_.vectorD();
+      const Eigen::Index pos = (d.array() > 0.0).count();
+      const Eigen::Index neg = (d.array() < 0.0).count();
+      return {pos, neg, n - pos - neg};
+    } else {
+      return {n, 0, 0};  // LLT only succeeds on positive definite input
+    }
+  }
+
  private:
   Solver solver_;
+};
+
+// Eigen MultifrontalLDLT: dense frontal matrices with level-3 updates and Bunch-Kaufman-style
+// 1x1 / 2x2 pivoting, so it also handles symmetric indefinite matrices stably.
+//
+// It has no setShift(), so the shift is applied to a copy: A + shift * I with an explicit
+// diagonal. The identity contributes structural diagonal entries even when shift == 0, so the
+// analyzed pattern is the same for every shift and refactorize() can change it freely.
+template <typename Ordering>
+class MultifrontalBackend final : public CholeskyBackend {
+ public:
+  using Solver = Eigen::MultifrontalLDLT<Sparse, Eigen::Lower, Ordering>;
+
+  void analyze(const Sparse &a) override {
+    identity_.resize(a.rows(), a.cols());
+    identity_.setIdentity();
+    solver_.analyzePattern(shifted(a, 0.0));
+  }
+
+  void factorize(const Sparse &a, double shift) override { solver_.factorize(shifted(a, shift)); }
+
+  Eigen::ComputationInfo info() const override { return solver_.info(); }
+
+  // Eigen's solve already applies each front to all right-hand sides at once.
+  void solve_into(const Eigen::Ref<const RowMatrix> &b, double *out) const override {
+    const ColMatrix rhs = b;
+    const ColMatrix x = solver_.solve(rhs);
+    Eigen::Map<RowMatrix>(out, b.rows(), b.cols()) = x;
+  }
+
+  std::pair<double, double> slogdet() const override {
+    const double sign = solver_.signDeterminant();
+    if (sign == 0.0) return {0.0, -std::numeric_limits<double>::infinity()};
+    return {sign, solver_.logAbsDeterminant()};
+  }
+
+  Eigen::Index factor_nnz() const override { return solver_.nonZeros(); }
+
+  std::array<Eigen::Index, 3> inertia() const override {
+    return {solver_.numPositive(), solver_.numNegative(), solver_.numZero()};
+  }
+
+ private:
+  Sparse shifted(const Sparse &a, double shift) const {
+    Sparse out = a + shift * identity_;
+    out.makeCompressed();
+    return out;
+  }
+
+  Solver solver_;
+  Sparse identity_;
 };
 
 static std::unique_ptr<CholeskyBackend> make_cholesky_backend(const std::string &mode, const std::string &ordering) {
@@ -918,7 +985,11 @@ static std::unique_ptr<CholeskyBackend> make_cholesky_backend(const std::string 
     if (amd) return std::make_unique<CholeskyBackendImpl<Eigen::SimplicialLLT<Sparse, Eigen::Lower, Amd>, false>>();
     return std::make_unique<CholeskyBackendImpl<Eigen::SimplicialLLT<Sparse, Eigen::Lower, Natural>, false>>();
   }
-  throw py::value_error("mode must be one of: ldlt, llt");
+  if (mode == "multifrontal") {
+    if (amd) return std::make_unique<MultifrontalBackend<Amd>>();
+    return std::make_unique<MultifrontalBackend<Natural>>();
+  }
+  throw py::value_error("mode must be one of: ldlt, llt, multifrontal");
 }
 
 // Reusable sparse Cholesky factorization of a symmetric matrix (lower triangle referenced).
@@ -982,6 +1053,10 @@ class SparseCholesky {
 
   Eigen::Index n() const { return n_; }
   Eigen::Index factor_nnz() const { return backend_->factor_nnz(); }
+  py::tuple inertia() const {
+    const auto in = backend_->inertia();
+    return py::make_tuple(in[0], in[1], in[2]);
+  }
   const std::string &mode() const { return mode_; }
   const std::string &ordering() const { return ordering_; }
   double shift() const { return shift_; }
@@ -994,8 +1069,9 @@ class SparseCholesky {
     }
     shift_ = shift;
     if (backend_->info() != Eigen::Success) {
-      raise_linalg_error(mode_ == "llt" ? "matrix is not positive definite (Cholesky LLT failed)"
-                                        : "matrix is singular (Cholesky LDLT hit a zero pivot)");
+      raise_linalg_error(mode_ == "llt"            ? "matrix is not positive definite (Cholesky LLT failed)"
+                         : mode_ == "multifrontal" ? "matrix is singular or not finite (multifrontal LDLT failed)"
+                                                   : "matrix is singular (Cholesky LDLT hit a zero pivot)");
     }
   }
 
@@ -1391,6 +1467,7 @@ PYBIND11_MODULE(_core, m) {
       .def("slogdet", &SparseCholesky::slogdet)
       .def_property_readonly("shape", [](const SparseCholesky &self) { return py::make_tuple(self.n(), self.n()); })
       .def_property_readonly("factor_nnz", &SparseCholesky::factor_nnz)
+      .def_property_readonly("inertia", &SparseCholesky::inertia)
       .def_property_readonly("mode", &SparseCholesky::mode)
       .def_property_readonly("ordering", &SparseCholesky::ordering)
       .def_property_readonly("shift", &SparseCholesky::shift);

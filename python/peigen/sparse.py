@@ -143,19 +143,27 @@ def factorize(a, *, method: str = "auto") -> SparseFactorized:
 
 
 class SparseCholesky:
-    """Reusable sparse Cholesky factorization of a symmetric matrix (Eigen ``SimplicialLDLT/LLT``).
+    """Reusable sparse factorization of a symmetric matrix (Eigen ``SimplicialLDLT/LLT`` or
+    ``MultifrontalLDLT``).
 
     Computes ``P (A + shift*I) P^T = L D L^T`` (``mode="ldlt"``, default) or ``= L L^T``
     (``mode="llt"``) with a fill-reducing permutation ``P`` (``ordering="amd"``, default, or
     ``"natural"``). Only one triangle of ``a`` is read (``lower=True`` reads the lower triangle), so
     passing just that triangle is fine.
 
+    ``mode="multifrontal"`` (experimental) factors the matrix as a tree of dense frontal matrices
+    with level-3 updates, which is much faster on high-fill problems such as 3D meshes. ``D`` has
+    1x1 and 2x2 blocks chosen by threshold pivoting, so it is also stable on symmetric *indefinite*
+    matrices (e.g. KKT / saddle-point systems). Its ``P`` also depends on the values, and
+    ``factor_nnz`` includes explicit zeros of merged fronts.
+
     ``mode="llt"`` requires ``A + shift*I`` to be positive definite. ``mode="ldlt"`` also factorizes
     some indefinite matrices, but it does not pivot for stability, so it is only reliable for
-    symmetric positive (or negative) definite matrices.
+    symmetric positive (or negative) definite matrices; use ``mode="multifrontal"`` for indefinite
+    input.
 
     Raises ``numpy.linalg.LinAlgError`` if the factorization breaks down (LLT on a matrix that is
-    not positive definite, or a zero pivot).
+    not positive definite, or a zero or non-finite pivot).
     """
 
     def __init__(self, a, *, mode: str = "ldlt", ordering: str = "amd", lower: bool = True, shift: float = 0.0):
@@ -189,6 +197,12 @@ class SparseCholesky:
     def factor_nnz(self) -> int:
         """Number of stored nonzeros in the factor ``L`` (a measure of fill-in)."""
         return int(self._impl.factor_nnz)
+
+    @property
+    def inertia(self) -> tuple[int, int, int]:
+        """``(positive, negative, zero)`` eigenvalue counts of ``A + shift*I``, read off the pivots of
+        ``D`` (Sylvester's law of inertia)."""
+        return tuple(int(v) for v in self._impl.inertia)
 
     def solve(self, b):
         """Solve ``(A + shift*I) x = b``; ``b`` may be 1D or 2D (one system per column)."""

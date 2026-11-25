@@ -299,7 +299,7 @@ The returned object is a `peigen.sparse.SparseFactorized` (also exported as `pei
 
 #### Sparse Cholesky (`cholesky`)
 
-Factorize a sparse symmetric positive definite matrix once and reuse it. Wraps Eigen's `SimplicialLDLT` / `SimplicialLLT` with a fill-reducing ordering, so it needs no extra native dependency (no SuiteSparse/CHOLMOD) and is MPL2-licensed.
+Factorize a sparse symmetric matrix once and reuse it. Wraps Eigen's `SimplicialLDLT` / `SimplicialLLT` and (experimental) `MultifrontalLDLT` with a fill-reducing ordering, so it needs no extra native dependency (no SuiteSparse/CHOLMOD) and is MPL2-licensed.
 
 ```python
 fac = sparse.cholesky(K)                 # P K P^T = L D L^T, AMD ordering
@@ -311,23 +311,28 @@ fac.refactorize(K_new, shift=1e-6)       # factorize K_new + 1e-6 * I
 
 reg = sparse.cholesky(K, shift=0.1)      # factorize K + 0.1 * I (regularization / GP jitter)
 up = sparse.cholesky(sp.triu(K), lower=False)  # only one triangle is read
+
+kkt = sparse.cholesky(K_indefinite, mode="multifrontal")  # pivoted LDL^T for indefinite matrices
+n_pos, n_neg, n_zero = kkt.inertia      # eigenvalue sign counts, from the pivots of D
 ```
 
 | Parameter | Description |
 |-----------|-------------|
 | `mode="ldlt"` | `L D L^T` (no square roots). Default. Also factorizes some symmetric indefinite matrices, but without stability pivoting, so prefer SPD input. |
 | `mode="llt"` | Standard Cholesky `L L^T`; requires positive definiteness. |
+| `mode="multifrontal"` | *Experimental.* `L D L^T` computed as a tree of dense frontal matrices with level-3 updates (Eigen `MultifrontalLDLT`). Much faster on high-fill problems such as 3D meshes. `D` has 1x1 and 2x2 blocks chosen by threshold pivoting, so it is stable on symmetric **indefinite** matrices (KKT / saddle-point systems). |
 | `ordering="amd"` | Approximate minimum degree fill-reducing ordering. Default. |
 | `ordering="natural"` | No reordering (useful only for banded matrices or debugging). |
 | `lower=True` | Read the lower triangle of `a`. `lower=False` reads the upper triangle. |
 | `shift=0.0` | Factorize `a + shift * I`. |
 
-`SparseCholesky` methods and properties: `solve(b)`, `refactorize(a, *, shift=None)` (`None` keeps the current shift), `slogdet()`, `logdet()`, `shape`, `mode`, `ordering`, `shift`, and `factor_nnz` (stored nonzeros in `L`, a measure of fill-in).
+`SparseCholesky` methods and properties: `solve(b)`, `refactorize(a, *, shift=None)` (`None` keeps the current shift), `slogdet()`, `logdet()`, `inertia` (`(positive, negative, zero)` eigenvalue counts, by Sylvester's law of inertia), `shape`, `mode`, `ordering`, `shift`, and `factor_nnz` (stored nonzeros in `L`, a measure of fill-in; for `multifrontal` it includes explicit zeros of merged fronts).
 
 **Requirements and behavior:**
 
 - `a` must be square. It is not checked for symmetry: only the selected triangle is referenced, as with `linalg.eigh`.
-- Raises `numpy.linalg.LinAlgError` if factorization breaks down: `mode="llt"` on a matrix that is not positive definite, or a zero pivot.
+- Raises `numpy.linalg.LinAlgError` if factorization breaks down: `mode="llt"` on a matrix that is not positive definite, or a zero or non-finite pivot.
+- For indefinite matrices use `mode="multifrontal"`; `mode="ldlt"` does not pivot and can be inaccurate or fail on them. `multifrontal`'s permutation also depends on the matrix's values (delayed pivots), and it does not scale the matrix, so badly scaled input should be equilibrated first.
 - `refactorize` raises `ValueError` if the sparsity pattern (including explicit zeros) differs from the original matrix; create a new factorization instead.
 - `logdet()` raises `ValueError` if the determinant is not positive; use `slogdet()` for indefinite input.
 - Also exported as `peigen.decomp.SparseCholesky`.
@@ -337,6 +342,7 @@ up = sparse.cholesky(sp.triu(K), lower=False)  # only one triangle is read
 - **Low-fill problems (2D meshes, graph Laplacians):** factorization is 1.8–6× faster than SciPy's default `splu`, 1.2–2× faster than `splu` configured for symmetric matrices, and 5–35% faster than CHOLMOD's simplicial mode. Solves with many right-hand sides use a blocked kernel and were the fastest of all tested solvers on these problems.
 - **High-fill problems (3D meshes, very large 2D grids):** supernodal solvers win. CHOLMOD's default mode was about 4× faster on a 512² grid and 20–45× faster on a 40³ grid (20–30× single-threaded), and symmetric-mode `splu` was up to about 1.7× faster. pEigen is still about 1.7× faster than default `splu` there.
 - Single-RHS solves are 1.4–2× slower than CHOLMOD's on low-fill problems, and up to 3× slower on 3D meshes.
+- **`mode="multifrontal"` (experimental)** uses dense fronts, so it changes the high-fill picture: it factors 3D meshes 3–9× faster than `ldlt` (40³ grid: 10.9 s → 1.25 s) and is within about 15% of CHOLMOD's supernodal mode on 2D meshes and graphs. On 3D meshes it is still 1.3–3.7× slower than CHOLMOD with the same AMD ordering. Single-RHS solves are on par with CHOLMOD's. Solves with many right-hand sides are 2.5–3.5× slower than `ldlt`'s blocked kernel on low-fill problems, which is one reason `ldlt` stays the default.
 
 ### `peigen.decomp`
 

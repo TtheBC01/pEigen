@@ -3,6 +3,16 @@
 All notable changes to pEigen are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `sparse.cholesky(..., mode="multifrontal")` (experimental): Eigen `MultifrontalLDLT`, a pivoted
+  `L D L^T` built from dense frontal matrices. Faster on high-fill problems (3D meshes) and stable
+  on symmetric indefinite matrices (1x1 / 2x2 pivots). Supports `shift`, `refactorize`, `slogdet`.
+- `SparseCholesky.inertia`: `(positive, negative, zero)` eigenvalue counts from the pivots of `D`,
+  for every mode.
+
 ## [2.0.0] - 2026-11-24
 
 A ground-up rewrite. pEigen is now a set of functions that take and return NumPy arrays and SciPy

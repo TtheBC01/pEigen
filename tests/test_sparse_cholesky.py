@@ -6,7 +6,7 @@ sp = pytest.importorskip("scipy.sparse")
 
 from peigen import decomp, sparse
 
-MODES = ["ldlt", "llt"]
+MODES = ["ldlt", "llt", "multifrontal"]
 ORDERINGS = ["amd", "natural"]
 
 
