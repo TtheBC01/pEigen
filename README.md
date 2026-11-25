@@ -13,16 +13,18 @@ pEigen is a lightweight Python package that exposes Eigen-powered dense and spar
 
 ## Installation
 
+The package is published on PyPI as `peigentux` and imported as `peigen`.
+
 Dense-only install:
 
 ```bash
-pip install peigen
+pip install peigentux
 ```
 
 Dense + sparse install:
 
 ```bash
-pip install peigen[sparse]
+pip install "peigentux[sparse]"
 ```
 
 ## Quick start
@@ -161,7 +163,7 @@ n = linalg.norm(A)
 
 ### `peigen.sparse`
 
-Requires SciPy (`pip install peigen[sparse]`). Sparse matrices are accepted in any SciPy format (`*_matrix` or `*_array`); inputs are converted to CSC internally when needed. `int32` or `int64` index arrays and real data of any dtype are accepted (converted to `int32` / `float64` copies when needed). Non-canonical inputs (unsorted or duplicate entries) are canonicalized on a copy; the caller's matrix is never modified. Matrices whose dimensions or nonzero count exceed the 32-bit range raise `ValueError`.
+Requires SciPy (`pip install "peigentux[sparse]"`). Sparse matrices are accepted in any SciPy format (`*_matrix` or `*_array`); inputs are converted to CSC internally when needed. `int32` or `int64` index arrays and real data of any dtype are accepted (converted to `int32` / `float64` copies when needed). Non-canonical inputs (unsorted or duplicate entries) are canonicalized on a copy; the caller's matrix is never modified. Matrices whose dimensions or nonzero count exceed the 32-bit range raise `ValueError`.
 
 - `spmm(a, b)`
 - `spspmm(a, b)`

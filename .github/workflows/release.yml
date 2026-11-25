@@ -93,7 +93,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/peigen
+      url: https://pypi.org/p/peigentux
     permissions:
       id-token: write  # PyPI Trusted Publishing
 

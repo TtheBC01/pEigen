@@ -73,9 +73,9 @@ python -m build
 
 - PR and `main` branch testing is in `.github/workflows/ci.yml`.
 - Tagged releases (`v*`) trigger `.github/workflows/release.yml`:
-  - builds wheels (macOS arm64/x86_64 + Linux x86_64)
+  - builds wheels (CPython 3.10-3.15; Linux x86_64/aarch64, macOS arm64/x86_64)
   - builds sdist
-  - publishes to PyPI (Trusted Publishing)
+  - publishes to PyPI as `peigentux` (Trusted Publishing; see `RELEASING.md`)
   - creates GitHub release
 
 ## OpenMP

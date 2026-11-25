@@ -3,11 +3,14 @@
 All notable changes to pEigen are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
-## [2.0.0] - Unreleased
+## [2.0.0] - 2026-11-24
 
 A ground-up rewrite. pEigen is now a set of functions that take and return NumPy arrays and SciPy
 sparse matrices, built with pybind11 and linked against BLAS/LAPACK, instead of the Boost.Python
-matrix classes of 0.0.x. **No 0.0.x code will run unchanged**; see *Migrating from 0.0.x* below.
+matrix classes of 1.0. **No 1.0 code will run unchanged**; see *Migrating from 1.0* below.
+
+This is the first release on PyPI. The distribution is named **`peigentux`** (`pip install peigentux`);
+the import name is still `peigen`. The unrelated `peigen` project on PyPI is not this package.
 
 ### Added
 
@@ -20,7 +23,7 @@ matrix classes of 0.0.x. **No 0.0.x code will run unchanged**; see *Migrating fr
   with `method="auto" | "lapack" | "eigen"` backend selection where applicable.
 - Sparse routines in `peigen.sparse`: `spmm`, `spspmm`, `solve` (SparseLU, CG with
   none/Jacobi/ILU preconditioning, BiCGSTAB), `solve_stats`, `factorize` (reusable SparseLU),
-  `to_dense`, `from_coo`. SciPy is an optional dependency (`pip install peigen[sparse]`).
+  `to_dense`, `from_coo`. SciPy is an optional dependency (`pip install "peigentux[sparse]"`).
 - Stateful helpers in `peigen.decomp`: `SVD`, `QR`, `SparseFactorized`, `SparseCholesky`.
 - `peigen.build_config()` / `show_build_config()` report the compiled-in BLAS/LAPACK backend,
   OpenMP, vectorization and Eigen version.
@@ -47,20 +50,20 @@ matrix classes of 0.0.x. **No 0.0.x code will run unchanged**; see *Migrating fr
 - `decomp.SVD.solve(b, rcond=None)`: `rcond` is relative to the largest singular value, matching
   `numpy.linalg.lstsq`.
 
-### Migrating from 0.0.x
+### Migrating from 1.0
 
-| 0.0.x | 2.0 |
+| 1.0 | 2.0 |
 |-------|-----|
 | `import libpeigen as peigen` | `import peigen` (and `from peigen import linalg, sparse, decomp`) |
 | `peigen.dense_matrix(data, rows, cols)` | a NumPy array, e.g. `np.array(data).reshape(rows, cols)` |
 | `peigen.sparse_matrix(...)` | a SciPy sparse matrix, e.g. `scipy.sparse.csc_matrix(...)` |
 | matrix methods (`.transpose()`, `.norm()`, element access, operators) | NumPy/SciPy operations, or `peigen.linalg.norm` |
 | decomposition methods on matrix objects | `linalg.svd`, `linalg.qr`, `linalg.eigh`, or the `decomp` classes |
-| Boost.Python build | pybind11 + scikit-build-core; `pip install peigen` |
+| Boost.Python build | pybind11 + scikit-build-core; `pip install peigentux` |
 
-## [0.0.9] and earlier
+## [1.0.0] and earlier
 
 Boost.Python bindings exposing `dense_matrix` / `sparse_matrix` objects and decomposition methods
-(module `libpeigen`). Not maintained.
+(module `libpeigen`), built from source only and never published to PyPI. Not maintained.
 
 [2.0.0]: https://github.com/TtheBC01/pEigen/releases/tag/v2.0.0

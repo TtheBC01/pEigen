@@ -13,7 +13,7 @@ def _require_scipy():
         import scipy.sparse as sp
     except ImportError as exc:  # pragma: no cover - exercised in tests
         raise ImportError(
-            "Sparse routines require SciPy. Install with `pip install peigen[sparse]`."
+            "Sparse routines require SciPy. Install with `pip install peigentux[sparse]`."
         ) from exc
     return sp
 
