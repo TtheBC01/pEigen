@@ -332,11 +332,11 @@ up = sparse.cholesky(sp.triu(K), lower=False)  # only one triangle is read
 - `logdet()` raises `ValueError` if the determinant is not positive; use `slogdet()` for indefinite input.
 - Also exported as `peigen.decomp.SparseCholesky`.
 
-**Performance.** `benchmarks/bench_cholesky.py` compares against SciPy SuperLU (`splu`) and, if scikit-sparse is installed, CHOLMOD. Eigen's factorization is *simplicial* (no dense supernode kernels), which sets its range:
+**Performance.** `benchmarks/bench_cholesky.py` compares against SciPy SuperLU (`splu`) and, if scikit-sparse is installed, CHOLMOD. Eigen's factorization is *simplicial* (no dense supernode kernels), which sets its range. Measured on an Apple M1 Pro with the bundled Eigen (master, 2026-11-22):
 
-- **Low-fill problems (2D meshes, graph Laplacians):** factorization is 1.8–6× faster than SciPy's default `splu`, 1.2–2× faster than `splu` configured for symmetric matrices, and about 10% faster than CHOLMOD's simplicial mode. Solves with many right-hand sides use a blocked kernel and were the fastest of all tested solvers on these problems.
-- **High-fill problems (3D meshes, very large 2D grids):** supernodal solvers win. CHOLMOD's default mode was about 4× faster on a 512² grid and 25–45× faster on a 40³ grid, even single-threaded, and symmetric-mode `splu` was up to about 1.8× faster. pEigen is still about 1.7× faster than default `splu` there.
-- Single-RHS solves are about 2× slower than CHOLMOD's.
+- **Low-fill problems (2D meshes, graph Laplacians):** factorization is 1.8–6× faster than SciPy's default `splu`, 1.2–2× faster than `splu` configured for symmetric matrices, and 5–35% faster than CHOLMOD's simplicial mode. Solves with many right-hand sides use a blocked kernel and were the fastest of all tested solvers on these problems.
+- **High-fill problems (3D meshes, very large 2D grids):** supernodal solvers win. CHOLMOD's default mode was about 4× faster on a 512² grid and 20–45× faster on a 40³ grid (20–30× single-threaded), and symmetric-mode `splu` was up to about 1.7× faster. pEigen is still about 1.7× faster than default `splu` there.
+- Single-RHS solves are 1.4–2× slower than CHOLMOD's on low-fill problems, and up to 3× slower on 3D meshes.
 
 ### `peigen.decomp`
 
