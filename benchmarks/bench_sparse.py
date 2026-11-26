@@ -33,14 +33,14 @@ BENCH_GRIDS = (
 )
 RHS_COLS = 8
 CG_RHS_COLS = 1
-CG_PRECONDITIONERS = ("none", "jacobi", "ilu")
+CG_PRECONDITIONERS = ("none", "jacobi", "ichol")
 SOLVE_RTOL = 1e-8
 
-# ILU parameters calibrated on BENCH_GRIDS Laplacian (seed 321): both sides converge at
-# rtol=1e-8 with similar CG iteration counts (typically 3–8 iterations).
-ILU_DROP_TOL = 1e-4
-SCIPY_ILU_FILL_FACTOR = 20
-EIGEN_ILU_FILL_FACTOR = 40
+# pEigen's "ichol" is zero-fill incomplete Cholesky. SciPy has no incomplete Cholesky, so the
+# SciPy side of the "ichol" rows uses spilu, its closest built-in incomplete factorization (with
+# fill, so it needs fewer iterations per solve but costs more to set up).
+SCIPY_SPILU_DROP_TOL = 1e-4
+SCIPY_SPILU_FILL_FACTOR = 20
 
 # Advection–diffusion: -epsilon * Laplacian + v · grad (upwind), nonsymmetric.
 ADV_DIFF_EPSILON = 1.0
@@ -196,11 +196,11 @@ def _relative_residual(a, x: np.ndarray, b: np.ndarray) -> float:
 
 
 def _scipy_cg_preconditioner(a, preconditioner: str):
-    if preconditioner == "ilu":
+    if preconditioner == "ichol":
         ilu = spla.spilu(
             a.tocsc(),
-            drop_tol=ILU_DROP_TOL,
-            fill_factor=SCIPY_ILU_FILL_FACTOR,
+            drop_tol=SCIPY_SPILU_DROP_TOL,
+            fill_factor=SCIPY_SPILU_FILL_FACTOR,
         )
         return spla.LinearOperator(a.shape, matvec=ilu.solve)
     if preconditioner == "jacobi":
@@ -209,7 +209,7 @@ def _scipy_cg_preconditioner(a, preconditioner: str):
 
 
 def _scipy_cg_solve(a, b: np.ndarray, *, rtol: float, maxiter: int, preconditioner: str) -> None:
-    """SciPy CG with optional preconditioner (setup included for ILU)."""
+    """SciPy CG with optional preconditioner (preconditioner setup included in the timing)."""
     b_vec = b if b.ndim == 1 else b[:, 0]
     kwargs: dict = {"rtol": rtol, "maxiter": maxiter}
     precond = _scipy_cg_preconditioner(a, preconditioner)
@@ -267,9 +267,6 @@ def _peigen_cg_profile(
         "maxiter": maxiter,
         "preconditioner": preconditioner,
     }
-    if preconditioner == "ilu":
-        solve_kwargs["ilu_fill_factor"] = EIGEN_ILU_FILL_FACTOR
-        solve_kwargs["ilu_drop_tol"] = ILU_DROP_TOL
     try:
         x = sparse.solve(a, b, **solve_kwargs)
         stats = sparse.solve_stats(a, b, **solve_kwargs)
@@ -298,9 +295,6 @@ def _peigen_cg_solve(
         "maxiter": maxiter,
         "preconditioner": preconditioner,
     }
-    if preconditioner == "ilu":
-        solve_kwargs["ilu_fill_factor"] = EIGEN_ILU_FILL_FACTOR
-        solve_kwargs["ilu_drop_tol"] = ILU_DROP_TOL
     return sparse.solve(a, b, **solve_kwargs)
 
 
@@ -366,8 +360,8 @@ def run():
     cg_rows: list[list[str]] = []
     cg_notes = (
         "Speedup only when both sides converge; same (A, b) per grid across preconditioners. "
-        f"ILU: SciPy spilu(fill={SCIPY_ILU_FILL_FACTOR}, drop_tol={ILU_DROP_TOL}); "
-        f"pEigen IncompleteLUT(fill={EIGEN_ILU_FILL_FACTOR}, drop_tol={ILU_DROP_TOL})."
+        "ichol: pEigen zero-fill IncompleteCholesky; SciPy has no incomplete Cholesky, so its side "
+        f"uses spilu(fill={SCIPY_SPILU_FILL_FACTOR}, drop_tol={SCIPY_SPILU_DROP_TOL})."
     )
     for nx, ny in BENCH_GRIDS:
         a = laplacian_2d(nx, ny)
