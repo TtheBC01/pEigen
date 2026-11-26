@@ -496,47 +496,73 @@ static int checked_int32(py::handle value, const char *what) {
   return static_cast<int>(v);
 }
 
-static std::unique_ptr<SparseCscView> map_sparse_csc(py::object matrix_obj) {
+using IndexArray = py::array_t<int, py::array::c_style | py::array::forcecast>;
+using DataArray = py::array_t<double, py::array::c_style | py::array::forcecast>;
+
+// A SciPy sparse matrix in compressed form (CSC, or CSR when allowed), canonical (sorted,
+// duplicate-free), with int32 indices and float64 values. The arrays alias the SciPy matrix when
+// no conversion was needed.
+struct CompressedView {
+  py::object owner;
+  IndexArray indptr;
+  IndexArray indices;
+  DataArray data;
+  int rows = 0;
+  int cols = 0;
+  int nnz = 0;
+  bool csr = false;
+};
+
+static CompressedView map_sparse_compressed(py::object matrix_obj, bool allow_csr) {
   py::module_ scipy_sparse = py::module_::import("scipy.sparse");
 
-  py::object csc_obj;
+  py::object obj;
   if (!scipy_sparse.attr("issparse")(matrix_obj).cast<bool>()) {
-    csc_obj = scipy_sparse.attr("csc_matrix")(matrix_obj);
-  } else if (matrix_obj.attr("format").cast<std::string>() == "csc") {
-    csc_obj = matrix_obj;
+    obj = scipy_sparse.attr("csc_matrix")(matrix_obj);
   } else {
-    csc_obj = matrix_obj.attr("tocsc")();
+    const auto format = matrix_obj.attr("format").cast<std::string>();
+    if (format == "csc" || (allow_csr && format == "csr")) {
+      obj = matrix_obj;
+    } else {
+      obj = matrix_obj.attr(allow_csr ? "tocsr" : "tocsc")();
+    }
   }
+  const bool csr = obj.attr("format").cast<std::string>() == "csr";
 
-  const py::object dtype = csc_obj.attr("dtype");
+  const py::object dtype = obj.attr("dtype");
   if (dtype.attr("kind").cast<std::string>() == "c") {
     throw py::type_error("complex sparse matrices are not supported; pEigen operates on real float64 data");
   }
 
   // Eigen requires sorted, duplicate-free inner indices. Canonicalize a copy so the caller's
   // matrix is never mutated.
-  if (!csc_obj.attr("has_canonical_format").cast<bool>()) {
-    csc_obj = csc_obj.attr("copy")();
-    csc_obj.attr("sum_duplicates")();
+  if (!obj.attr("has_canonical_format").cast<bool>()) {
+    obj = obj.attr("copy")();
+    obj.attr("sum_duplicates")();
   }
 
-  const auto shape = csc_obj.attr("shape").cast<py::tuple>();
-  const int rows = checked_int32(shape[0], "row count");
-  const int cols = checked_int32(shape[1], "column count");
-  const int nnz = checked_int32(csc_obj.attr("nnz"), "nonzero count");
+  const auto shape = obj.attr("shape").cast<py::tuple>();
+  CompressedView v;
+  v.rows = checked_int32(shape[0], "row count");
+  v.cols = checked_int32(shape[1], "column count");
+  v.nnz = checked_int32(obj.attr("nnz"), "nonzero count");
+  v.csr = csr;
 
   // Index values are bounded by the shape and nnz checked above, so narrowing to int32 is lossless.
-  using IndexArray = py::array_t<int, py::array::c_style | py::array::forcecast>;
-  using DataArray = py::array_t<double, py::array::c_style | py::array::forcecast>;
-  auto indptr = IndexArray::ensure(csc_obj.attr("indptr"));
-  auto indices = IndexArray::ensure(csc_obj.attr("indices"));
-  auto data = DataArray::ensure(csc_obj.attr("data"));
-  if (!indptr || !indices || !data) {
+  v.indptr = IndexArray::ensure(obj.attr("indptr"));
+  v.indices = IndexArray::ensure(obj.attr("indices"));
+  v.data = DataArray::ensure(obj.attr("data"));
+  if (!v.indptr || !v.indices || !v.data) {
     throw py::type_error("sparse matrix index/data arrays could not be converted to int32/float64");
   }
+  v.owner = std::move(obj);
+  return v;
+}
 
-  return std::make_unique<SparseCscView>(std::move(csc_obj), std::move(indptr), std::move(indices),
-                                         std::move(data), rows, cols, nnz);
+static std::unique_ptr<SparseCscView> map_sparse_csc(py::object matrix_obj) {
+  CompressedView v = map_sparse_compressed(std::move(matrix_obj), /*allow_csr=*/false);
+  return std::make_unique<SparseCscView>(std::move(v.owner), std::move(v.indptr), std::move(v.indices),
+                                         std::move(v.data), v.rows, v.cols, v.nnz);
 }
 
 static py::object to_scipy_csc(const Sparse &mat) {
@@ -1369,16 +1395,69 @@ class SparseCholesky {
   double shift_ = 0.0;
 };
 
+// Sparse @ dense with a row-major right-hand side and result, so every nonzero A(i, j) touches a
+// contiguous row of k values: CSR gathers into output row i, CSC scatters from B row j. (Eigen's
+// generic sparse * dense kernel walks one column of B at a time, which strides through row-major
+// data; on large inputs that was up to ~30x slower than SciPy.)
+static void spmm_kernel(const CompressedView &a, const Eigen::Ref<const RowMatrix> &b, double *out) {
+  const Eigen::Index k = b.cols();
+  const Eigen::Index ldb = b.outerStride();
+  const int *ptr = a.indptr.data();
+  const int *idx = a.indices.data();
+  const double *val = a.data.data();
+  const double *B = b.data();
+
+  if (a.csr) {
+    for (Eigen::Index i = 0; i < a.rows; ++i) {
+      double *o = out + i * k;
+      if (k == 1) {
+        double acc = 0.0;
+        for (int q = ptr[i]; q < ptr[i + 1]; ++q) acc += val[q] * B[static_cast<Eigen::Index>(idx[q]) * ldb];
+        o[0] = acc;
+        continue;
+      }
+      std::fill_n(o, k, 0.0);
+      for (int q = ptr[i]; q < ptr[i + 1]; ++q) {
+        const double v = val[q];
+        const double *bj = B + static_cast<Eigen::Index>(idx[q]) * ldb;
+        for (Eigen::Index c = 0; c < k; ++c) o[c] += v * bj[c];
+      }
+    }
+    return;
+  }
+
+  std::fill_n(out, static_cast<Eigen::Index>(a.rows) * k, 0.0);
+  for (Eigen::Index j = 0; j < a.cols; ++j) {
+    const double *bj = B + j * ldb;
+    if (k == 1) {
+      const double bv = bj[0];
+      for (int q = ptr[j]; q < ptr[j + 1]; ++q) out[idx[q]] += val[q] * bv;
+      continue;
+    }
+    for (int q = ptr[j]; q < ptr[j + 1]; ++q) {
+      const double v = val[q];
+      double *o = out + static_cast<Eigen::Index>(idx[q]) * k;
+      for (Eigen::Index c = 0; c < k; ++c) o[c] += v * bj[c];
+    }
+  }
+}
+
 static py::array_t<double> core_spmm(py::object a, const py::array_t<double, py::array::forcecast> &b) {
-  const auto sparse = map_sparse_csc(a);
+  const CompressedView sparse = map_sparse_compressed(std::move(a), /*allow_csr=*/true);
   std::unique_ptr<RowMatrix> owned_b;
   const Eigen::Ref<const RowMatrix> rhs = dense_row_ref(b, "b", owned_b);
 
-  if (sparse->mat.cols() != rhs.rows()) {
+  if (sparse.cols != rhs.rows()) {
     throw py::value_error("spmm dimension mismatch");
   }
 
-  return assign_to_output(sparse->mat * rhs);
+  py::array_t<double> out = make_output_array(sparse.rows, rhs.cols());
+  double *out_ptr = out.mutable_data();
+  {
+    py::gil_scoped_release release;
+    spmm_kernel(sparse, rhs, out_ptr);
+  }
+  return out;
 }
 
 static py::object core_spspmm(py::object a, py::object b) {
@@ -1389,8 +1468,15 @@ static py::object core_spspmm(py::object a, py::object b) {
     throw py::value_error("spspmm dimension mismatch");
   }
 
-  Sparse out = (sparse_a->mat * sparse_b->mat).pruned();
-  out.makeCompressed();
+  // Plain A * B uses Eigen's conservative product; (A * B).pruned() selects a separate, slower
+  // product algorithm. Dropping exact zeros afterwards gives the same result.
+  Sparse out;
+  {
+    py::gil_scoped_release release;
+    out = sparse_a->mat * sparse_b->mat;
+    out.prune(0.0);
+    out.makeCompressed();
+  }
   return to_scipy_csc(out);
 }
 

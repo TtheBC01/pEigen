@@ -177,3 +177,54 @@ def test_sparse_factorized_solve():
     x = fac.solve(b)
     resid = np.linalg.norm(a @ x - b) / np.linalg.norm(b)
     assert resid < 1e-9
+
+
+# ---------------------------------------------------------------------------------------------
+# spmm / spspmm: every input format and dense layout goes through the row-major kernels.
+
+
+@pytest.mark.parametrize("fmt", ["csr", "csc", "coo", "bsr", "dok"])
+@pytest.mark.parametrize("k", [1, 3, 17])
+def test_spmm_formats_and_widths(fmt, k):
+    a = sp.random(37, 23, density=0.2, format="csr", random_state=k)
+    b = np.random.default_rng(k).standard_normal((23, k))
+    npt.assert_allclose(sparse.spmm(a.asformat(fmt), b), a @ b, rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize("fmt", ["csr", "csc"])
+def test_spmm_dense_layouts(fmt):
+    a = sp.random(40, 30, density=0.15, format=fmt, random_state=3)
+    base = np.random.default_rng(3).standard_normal((30, 12))
+    for b in (base, np.asfortranarray(base), base[:, ::2], base.T.copy().T):
+        npt.assert_allclose(sparse.spmm(a, b), a @ b, rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize("fmt", ["csr", "csc"])
+def test_spmm_empty_and_nonfinite(fmt):
+    empty = sp.csr_matrix((5, 4)).asformat(fmt)
+    npt.assert_array_equal(sparse.spmm(empty, np.ones((4, 3))), np.zeros((5, 3)))
+    a = sp.csr_matrix(np.array([[np.nan, 0.0], [1.0, np.inf]])).asformat(fmt)
+    for k in (1, 2):
+        b = np.zeros((2, k))
+        npt.assert_array_equal(np.isnan(sparse.spmm(a, b)), np.isnan(a.toarray() @ b))
+
+
+def test_spmm_noncanonical_csr_is_not_modified():
+    a = sp.csr_matrix((np.array([1.0, 2.0, 3.0]), np.array([1, 0, 1]), np.array([0, 3, 3])), shape=(2, 2))
+    assert not a.has_canonical_format
+    before = (a.data.copy(), a.indices.copy())
+    b = np.array([[1.0, 2.0], [10.0, 20.0]])
+    npt.assert_allclose(sparse.spmm(a, b), a.toarray() @ b)
+    npt.assert_array_equal(a.data, before[0])
+    npt.assert_array_equal(a.indices, before[1])
+
+
+@pytest.mark.parametrize("fmt", ["csr", "csc"])
+def test_spspmm_rectangular_and_drops_exact_zeros(fmt):
+    a = sp.random(30, 20, density=0.2, format=fmt, random_state=5)
+    b = sp.random(20, 25, density=0.2, format=fmt, random_state=6)
+    out = sparse.spspmm(a, b)
+    assert out.format == "csc" and out.shape == (30, 25)
+    npt.assert_allclose(out.toarray(), (a @ b).toarray(), rtol=1e-12, atol=1e-12)
+    cancel = sparse.spspmm(sp.csr_matrix([[1.0, 1.0]]), sp.csr_matrix([[1.0], [-1.0]]))
+    assert cancel.nnz == 0

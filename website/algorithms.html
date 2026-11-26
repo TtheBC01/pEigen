@@ -161,13 +161,13 @@
           <thead><tr><th>Function</th><th>Computes</th><th>Returns</th></tr></thead>
           <tbody>
             <tr><td><code>spmm(a, b)</code></td><td>sparse @ dense</td><td>NumPy array</td></tr>
-            <tr><td><code>spspmm(a, b)</code></td><td>sparse @ sparse</td><td><code>scipy.sparse</code> CSC matrix, pruned</td></tr>
+            <tr><td><code>spspmm(a, b)</code></td><td>sparse @ sparse</td><td><code>scipy.sparse</code> CSC matrix, exact zeros dropped</td></tr>
             <tr><td><code>to_dense(a)</code></td><td>sparse to dense</td><td>NumPy array</td></tr>
             <tr><td><code>from_coo(data, row, col, shape)</code></td><td>build from triplets (duplicates summed)</td><td><code>scipy.sparse</code> CSC matrix</td></tr>
           </tbody>
         </table>
       </div>
-      <p>For plain products, SciPy's own <code>@</code> is currently faster; see the <a href="benchmarks.html#sparse">benchmarks</a>. These functions are mainly here for API completeness.</p>
+      <p><code>spmm</code> uses CSR and CSC input as is and matches SciPy's <code>@</code> on large matrices; it also releases the GIL. For sparse @ sparse, SciPy's <code>@</code> is still faster (about 1.2–2.3×); see the <a href="benchmarks.html#sparse">benchmarks</a>.</p>
     </section>
 
     <section id="decomp">

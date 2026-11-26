@@ -184,8 +184,9 @@ Y = sparse.spmm(A, B)   # A: (m, n) sparse, B: (n, k) dense → (m, k) dense
 
 **Requirements and behavior:**
 
-- `A` must be 2D sparse (any SciPy sparse format; converted to CSC).
-- `B` must be a 2D `float64` array with shape `(n, k)` where `n = A.shape[1]`.
+- `A` must be 2D sparse. CSR and CSC are used as they are; other formats are converted to CSR.
+- `B` must be a 2D `float64` array with shape `(n, k)` where `n = A.shape[1]`. Any memory layout works; C-ordered `B` avoids a copy.
+- Releases the GIL while multiplying.
 - Raises `ValueError` on dimension mismatch.
 
 #### Sparse @ sparse multiply (`spspmm`)
@@ -200,7 +201,7 @@ C = sparse.spspmm(A, B)   # A: (m, n), B: (n, k) → CSC (m, k)
 
 - Both operands must be 2D sparse (converted to CSC).
 - Raises `ValueError` if inner dimensions disagree.
-- Result is pruned and returned as `scipy.sparse.csc_matrix`.
+- Exact zeros are dropped from the result, which is returned as `scipy.sparse.csc_matrix`.
 
 #### Sparse linear solve (`solve`)
 

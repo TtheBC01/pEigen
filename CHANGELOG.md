@@ -18,6 +18,17 @@ All notable changes to pEigen are documented here. The project follows
 - `sparse.solve_stats` also returns `"residual"`, the true relative residual
   `‖b − Ax‖ / ‖b‖` of the solution (`"error"` remains Eigen's recursive estimate).
 
+### Changed
+
+- `sparse.spmm` is rewritten with row-major kernels (CSR rows gathered, CSC columns scattered) and
+  accepts CSR input without converting it to CSC. It was 2.3–32× slower than SciPy's `A @ B`,
+  worst for large matrices and many columns, because Eigen's generic product strided through
+  row-major data; it now matches SciPy on large matrices (n=1M, 8 columns: 110 ms → 11 ms vs SciPy's 10.6 ms;
+  64 columns at n=262k: 539 ms → 17 ms) and is within 7–16% on small ones. It also releases the GIL.
+- `sparse.spspmm` uses Eigen's conservative product and drops exact zeros afterwards instead of
+  `(A * B).pruned()`, which selects a slower algorithm: `A @ A` on 2D Laplacians is about 25% faster (now 1.2–1.7×
+  SciPy's time). Products with a diagonal matrix are unchanged at about 2× SciPy's time.
+
 ### Fixed
 
 - BiCGSTAB (and CG) could report success while the true residual was far above `tol`: Eigen
