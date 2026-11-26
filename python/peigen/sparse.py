@@ -155,7 +155,10 @@ class SparseCholesky:
     with level-3 updates, which is much faster on high-fill problems such as 3D meshes. ``D`` has
     1x1 and 2x2 blocks chosen by threshold pivoting, so it is also stable on symmetric *indefinite*
     matrices (e.g. KKT / saddle-point systems). Its ``P`` also depends on the values, and
-    ``factor_nnz`` includes explicit zeros of merged fronts.
+    ``factor_nnz`` includes explicit zeros of merged fronts. The first solve with several
+    right-hand sides after each factorization builds a supernodal copy of ``L`` for a blocked
+    kernel (a one-time cost of roughly a third to two thirds of the factorization, plus the memory
+    of a second ``L``); later many-RHS solves reuse it. Single-RHS solves never build it.
 
     ``mode="llt"`` requires ``A + shift*I`` to be positive definite. ``mode="ldlt"`` also factorizes
     some indefinite matrices, but it does not pivot for stability, so it is only reliable for

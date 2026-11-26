@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -919,6 +920,187 @@ class CholeskyBackendImpl final : public CholeskyBackend {
   Solver solver_;
 };
 
+// The factor of a multifrontal LDLT in supernodal form, for blocked many-RHS solves.
+//
+// Eigen's MultifrontalLDLT::solve applies large fronts as dense products but solves small fronts
+// (most of them, on 2D meshes and graphs) one right-hand side at a time over a column-major X, so
+// it re-reads L once per column. Here X is row-major, so every entry L(i, j) updates a contiguous
+// row of k values, and large supernodes still go through dense TRSM / GEMM.
+//
+// The fronts themselves are private to Eigen, so the supernodes are recovered from matrixL(): it
+// keeps each front's explicit zeros, so a front's pivot columns form a dense trapezoid, and
+// consecutive columns whose row patterns nest (column j+1 = column j without row j) are merged.
+// Each supernode is packed as a dense column-major (order x width) block whose first `width` rows
+// are its own pivots, which are consecutive in pivot order.
+class SupernodalLDLT {
+ public:
+  template <typename Solver>
+  explicit SupernodalLDLT(const Solver &solver) : n_(solver.rows()) {
+    const auto &perm = solver.permutationP().indices();
+    perm_.assign(perm.data(), perm.data() + n_);
+    build_blocks(solver.matrixL());
+    build_dinv(solver.vectorD(), solver.subDiagonal());
+  }
+
+  // b, out: row-major n x k.
+  void solve_into(const Eigen::Ref<const RowMatrix> &b, double *out) const {
+    const Eigen::Index k = b.cols();
+    // X = P b: (P b)[perm[i]] = b[i]
+    RowMatrix X(n_, k);
+    for (Eigen::Index i = 0; i < n_; ++i) X.row(perm_[i]) = b.row(i);
+    RowMatrix scratch(max_below_, k);
+    double *x = X.data();
+
+    // L Y = X
+    for (const Super &s : supers_) {
+      const double *lv = values_.data() + s.values;
+      const int *rows = rows_.data() + s.rows;
+      const Eigen::Index m = s.order, c = s.width, below = m - c;
+      if (dense(s)) {
+        Eigen::Map<const ColMatrix> blk(lv, m, c);
+        Eigen::Map<RowMatrix> top(x + s.first * k, c, k);
+        blk.topRows(c).triangularView<Eigen::UnitLower>().solveInPlace(top);
+        auto t = scratch.topRows(below);
+        t.noalias() = blk.bottomRows(below) * top;
+        for (Eigen::Index i = 0; i < below; ++i) X.row(rows[c + i]) -= t.row(i);
+      } else {
+        for (Eigen::Index j = 0; j < c; ++j) {
+          const double *xj = x + (s.first + j) * k;
+          const double *col = lv + j * m;
+          for (Eigen::Index i = j + 1; i < m; ++i) {
+            const double v = col[i];
+            double *xi = x + static_cast<Eigen::Index>(rows[i]) * k;
+            for (Eigen::Index q = 0; q < k; ++q) xi[q] -= v * xj[q];
+          }
+        }
+      }
+    }
+
+    // D Z = Y, with 1x1 and 2x2 blocks.
+    for (Eigen::Index p = 0; p < n_; ++p) {
+      double *xp = x + p * k;
+      if (two_by_two_[p]) {
+        double *xq = xp + k;
+        const double a = dinv_[p], off = dinv_off_[p], d = dinv_[p + 1];
+        for (Eigen::Index q = 0; q < k; ++q) {
+          const double y1 = xp[q], y2 = xq[q];
+          xp[q] = a * y1 + off * y2;
+          xq[q] = off * y1 + d * y2;
+        }
+        ++p;
+      } else {
+        const double a = dinv_[p];
+        for (Eigen::Index q = 0; q < k; ++q) xp[q] *= a;
+      }
+    }
+
+    // L^T W = Z
+    for (auto it = supers_.rbegin(); it != supers_.rend(); ++it) {
+      const Super &s = *it;
+      const double *lv = values_.data() + s.values;
+      const int *rows = rows_.data() + s.rows;
+      const Eigen::Index m = s.order, c = s.width, below = m - c;
+      if (dense(s)) {
+        Eigen::Map<const ColMatrix> blk(lv, m, c);
+        Eigen::Map<RowMatrix> top(x + s.first * k, c, k);
+        auto g = scratch.topRows(below);
+        for (Eigen::Index i = 0; i < below; ++i) g.row(i) = X.row(rows[c + i]);
+        top.noalias() -= blk.bottomRows(below).transpose() * g;
+        blk.topRows(c).transpose().triangularView<Eigen::UnitUpper>().solveInPlace(top);
+      } else {
+        for (Eigen::Index j = c - 1; j >= 0; --j) {
+          double *xj = x + (s.first + j) * k;
+          const double *col = lv + j * m;
+          for (Eigen::Index i = j + 1; i < m; ++i) {
+            const double v = col[i];
+            const double *xi = x + static_cast<Eigen::Index>(rows[i]) * k;
+            for (Eigen::Index q = 0; q < k; ++q) xj[q] -= v * xi[q];
+          }
+        }
+      }
+    }
+
+    // out = P^{-1} W: out[i] = W[perm[i]]
+    for (Eigen::Index i = 0; i < n_; ++i) {
+      std::copy_n(x + static_cast<Eigen::Index>(perm_[i]) * k, k, out + i * k);
+    }
+  }
+
+ private:
+  struct Super {
+    Eigen::Index first, width, order;
+    std::size_t rows, values;
+  };
+
+  // Below this block size the dense kernels' call overhead outweighs their speed.
+  static constexpr Eigen::Index kDenseMinSize = 1024;
+  static bool dense(const Super &s) { return s.width > 1 && s.order * s.width >= kDenseMinSize; }
+
+  void build_blocks(const Sparse &L) {
+    const int *lp = L.outerIndexPtr();
+    const int *li = L.innerIndexPtr();
+    const double *lx = L.valuePtr();
+    // L comes from setFromTriplets: compressed, sorted rows, unit diagonal first in each column.
+    Eigen::Index j = 0;
+    while (j < n_) {
+      Eigen::Index width = 1;
+      while (j + width < n_) {
+        const Eigen::Index prev = j + width - 1, next = j + width;
+        const int prev_len = lp[prev + 1] - lp[prev];
+        const int next_len = lp[next + 1] - lp[next];
+        if (next_len != prev_len - 1 || prev_len < 2 || li[lp[prev] + 1] != next ||
+            !std::equal(li + lp[prev] + 1, li + lp[prev + 1], li + lp[next])) {
+          break;
+        }
+        ++width;
+      }
+      const Eigen::Index order = lp[j + 1] - lp[j];
+      Super s{j, width, order, rows_.size(), values_.size()};
+      rows_.insert(rows_.end(), li + lp[j], li + lp[j + 1]);
+      values_.resize(values_.size() + static_cast<std::size_t>(order * width), 0.0);
+      double *blk = values_.data() + s.values;
+      for (Eigen::Index c = 0; c < width; ++c) {
+        // Column j + c holds rows (j + c, ...) = the supernode's rows from index c on.
+        std::copy(lx + lp[j + c], lx + lp[j + c + 1], blk + c * order + c);
+      }
+      max_below_ = std::max(max_below_, order - width);
+      supers_.push_back(s);
+      j += width;
+    }
+  }
+
+  void build_dinv(const Vector &d, const Vector &sub) {
+    dinv_.assign(static_cast<std::size_t>(n_), 0.0);
+    dinv_off_.assign(static_cast<std::size_t>(n_), 0.0);
+    two_by_two_.assign(static_cast<std::size_t>(n_), 0);
+    for (Eigen::Index p = 0; p < n_; ++p) {
+      if (p + 1 < n_ && sub[p] != 0.0) {
+        // Inverse of [[d1, b], [b, d2]], scaled so that the determinant doesn't overflow.
+        const double d1 = d[p], d2 = d[p + 1], b = sub[p];
+        const double scale = std::max({std::abs(d1), std::abs(d2), std::abs(b)});
+        const double a = d1 / scale, c = d2 / scale, bs = b / scale;
+        const double det = a * c - bs * bs;
+        dinv_[p] = (c / det) / scale;
+        dinv_[p + 1] = (a / det) / scale;
+        dinv_off_[p] = (-bs / det) / scale;
+        two_by_two_[p] = 1;
+        ++p;
+      } else {
+        dinv_[p] = d[p] != 0.0 ? 1.0 / d[p] : 0.0;  // zero pivot: minimum-norm solution, as Eigen
+      }
+    }
+  }
+
+  Eigen::Index n_;
+  Eigen::Index max_below_ = 0;
+  std::vector<int> perm_;
+  std::vector<Super> supers_;
+  std::vector<int> rows_;
+  std::vector<double> values_;
+  std::vector<double> dinv_, dinv_off_;
+  std::vector<char> two_by_two_;
+};
+
 // Eigen MultifrontalLDLT: dense frontal matrices with level-3 updates and Bunch-Kaufman-style
 // 1x1 / 2x2 pivoting, so it also handles symmetric indefinite matrices stably.
 //
@@ -936,15 +1118,31 @@ class MultifrontalBackend final : public CholeskyBackend {
     solver_.analyzePattern(shifted(a, 0.0));
   }
 
-  void factorize(const Sparse &a, double shift) override { solver_.factorize(shifted(a, shift)); }
+  void factorize(const Sparse &a, double shift) override {
+    std::lock_guard<std::mutex> lock(blocked_mutex_);
+    blocked_.reset();
+    solver_.factorize(shifted(a, shift));
+  }
 
   Eigen::ComputationInfo info() const override { return solver_.info(); }
 
-  // Eigen's solve already applies each front to all right-hand sides at once.
+  // One right-hand side: Eigen's solve (vector kernels on large fronts, no extra memory).
+  // Several: the supernodal blocked solve, built from the factor on first use and then kept
+  // until the next factorize(). Building it costs about as much as one many-RHS solve and holds
+  // a second copy of L.
   void solve_into(const Eigen::Ref<const RowMatrix> &b, double *out) const override {
-    const ColMatrix rhs = b;
-    const ColMatrix x = solver_.solve(rhs);
-    Eigen::Map<RowMatrix>(out, b.rows(), b.cols()) = x;
+    if (b.cols() == 1) {
+      const Vector x = solver_.solve(Vector(b.col(0)));
+      std::copy_n(x.data(), x.size(), out);
+      return;
+    }
+    std::shared_ptr<const SupernodalLDLT> blocked;
+    {
+      std::lock_guard<std::mutex> lock(blocked_mutex_);
+      if (!blocked_) blocked_ = std::make_shared<const SupernodalLDLT>(solver_);
+      blocked = blocked_;
+    }
+    blocked->solve_into(b, out);
   }
 
   std::pair<double, double> slogdet() const override {
@@ -968,6 +1166,8 @@ class MultifrontalBackend final : public CholeskyBackend {
 
   Solver solver_;
   Sparse identity_;
+  mutable std::mutex blocked_mutex_;
+  mutable std::shared_ptr<const SupernodalLDLT> blocked_;
 };
 
 static std::unique_ptr<CholeskyBackend> make_cholesky_backend(const std::string &mode, const std::string &ordering) {

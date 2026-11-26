@@ -10,6 +10,9 @@ All notable changes to pEigen are documented here. The project follows
 - `sparse.cholesky(..., mode="multifrontal")` (experimental): Eigen `MultifrontalLDLT`, a pivoted
   `L D L^T` built from dense frontal matrices. Faster on high-fill problems (3D meshes) and stable
   on symmetric indefinite matrices (1x1 / 2x2 pivots). Supports `shift`, `refactorize`, `slogdet`.
+  Solves with several right-hand sides use a supernodal blocked kernel (dense TRSM/GEMM on large
+  fronts, row-contiguous updates on small ones), built from `L` on the first such solve after each
+  factorization: 32-RHS solves are 2-4x faster than Eigen's own multifrontal solve.
 - `SparseCholesky.inertia`: `(positive, negative, zero)` eigenvalue counts from the pivots of `D`,
   for every mode.
 

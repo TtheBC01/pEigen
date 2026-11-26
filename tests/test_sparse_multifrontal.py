@@ -20,6 +20,12 @@ def laplacian_2d(nx):
     return (sp.kron(sp.eye(nx), t) + sp.kron(t, sp.eye(nx))).tocsc()
 
 
+def laplacian_3d(nx):
+    t = sp.diags([-1.0, 2.0, -1.0], [-1, 0, 1], shape=(nx, nx))
+    eye = sp.eye(nx)
+    return (sp.kron(sp.kron(t, eye), eye) + sp.kron(sp.kron(eye, t), eye) + sp.kron(sp.kron(eye, eye), t)).tocsc()
+
+
 def kkt(n=40, m=11, seed=0):
     """Saddle-point matrix [[H, B^T], [B, 0]] with H SPD and B full row rank: inertia (n, m, 0)."""
     rng = np.random.default_rng(seed)
@@ -59,6 +65,8 @@ def test_zero_diagonal_needs_2x2_pivots():
     npt.assert_allclose(a @ fac.solve(b), b, atol=1e-12)
     assert fac.inertia == (k, k, 0)
     assert fac.slogdet() == ((-1.0) ** k, 0.0)
+    bb = np.column_stack([b, -2.0 * b, np.ones(2 * k)])  # several RHS: blocked path, 2x2 D blocks
+    npt.assert_allclose(a @ fac.solve(bb), bb, atol=1e-12)
 
 
 def test_indefinite_more_accurate_than_simplicial_ldlt():
@@ -108,6 +116,35 @@ def test_refactorize_changes_inertia():
     npt.assert_allclose(fac.slogdet()[1], np.linalg.slogdet(a.toarray() + shift * np.eye(64))[1], rtol=1e-10)
 
 
+@pytest.mark.parametrize("ordering", ORDERINGS)
+@pytest.mark.parametrize(
+    "make",
+    [lambda: laplacian_3d(12), lambda: laplacian_3d(12) - 1.5 * sp.eye(12**3), lambda: kkt(300, 80)[0]],
+    ids=["3d-spd", "3d-indefinite", "kkt"],
+)
+def test_many_rhs_matches_single_rhs(make, ordering):
+    # Many RHS go through the supernodal blocked solve (dense kernels on large fronts, row updates
+    # on small ones); one RHS goes through Eigen's solve. Both must agree with a dense solve.
+    a = make()
+    fac = sparse.cholesky(a, mode="multifrontal", ordering=ordering)
+    rng = np.random.default_rng(5)
+    b = rng.standard_normal((a.shape[0], 9))
+    ref = np.linalg.solve(a.toarray(), b)
+    x = fac.solve(b)
+    npt.assert_allclose(x, ref, rtol=1e-8, atol=1e-10 * np.abs(ref).max())
+    npt.assert_allclose(np.column_stack([fac.solve(b[:, j]) for j in range(9)]), x, rtol=1e-8, atol=1e-10)
+    npt.assert_allclose(fac.solve(b[:, :2]), x[:, :2], rtol=1e-8, atol=1e-10)
+
+
+def test_refactorize_invalidates_blocked_solve():
+    a = laplacian_3d(8)
+    fac = sparse.cholesky(a, mode="multifrontal")
+    b = np.random.default_rng(1).standard_normal((a.shape[0], 4))
+    fac.solve(b)  # builds the blocked factor
+    fac.refactorize(a, shift=0.7)
+    npt.assert_allclose(fac.solve(b), np.linalg.solve(a.toarray() + 0.7 * np.eye(a.shape[0]), b), rtol=1e-10)
+
+
 def test_inertia_simplicial_modes():
     a = laplacian_2d(5)
     assert sparse.cholesky(a, mode="llt").inertia == (25, 0, 0)
@@ -138,6 +175,8 @@ def test_concurrent_solves_share_one_factorization():
     rng = np.random.default_rng(0)
     rhs = [rng.standard_normal((a.shape[0], k)) for k in (1, 4, 1, 16, 1, 4, 1, 16)]
     expected = [fac.solve(b) for b in rhs]
+    # A fresh factorization, so the threads also race to build the blocked factor.
+    fac = sparse.cholesky(a, mode="multifrontal")
     with ThreadPoolExecutor(max_workers=4) as pool:
         got = list(pool.map(fac.solve, rhs))
     for e, g in zip(expected, got):
