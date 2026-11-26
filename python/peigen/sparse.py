@@ -195,6 +195,8 @@ class SparseCholesky:
     symmetric positive (or negative) definite matrices; use ``mode="multifrontal"`` for indefinite
     input.
 
+    The factors themselves are available as :meth:`L`, :meth:`D` and :meth:`P`.
+
     Raises ``numpy.linalg.LinAlgError`` if the factorization breaks down (LLT on a matrix that is
     not positive definite, or a zero or non-finite pivot).
     """
@@ -236,6 +238,34 @@ class SparseCholesky:
         """``(positive, negative, zero)`` eigenvalue counts of ``A + shift*I``, read off the pivots of
         ``D`` (Sylvester's law of inertia)."""
         return tuple(int(v) for v in self._impl.inertia)
+
+    def L(self):
+        """The lower-triangular factor ``L`` as a SciPy CSC matrix, in pivot order.
+
+        With ``p = self.P()`` and ``As = A + shift*I``: ``As[p][:, p] == L @ D @ L.T``. ``L`` has its
+        diagonal stored: unit for ``"ldlt"`` and ``"multifrontal"``, positive for ``"llt"``. For
+        ``"multifrontal"`` it keeps the explicit zeros of merged fronts. Built on each call (O(nnz)).
+        """
+        return self._impl.L()
+
+    def D(self):
+        """The middle factor ``D`` as a SciPy CSC matrix (see :meth:`L`).
+
+        Diagonal for ``"ldlt"``; block diagonal with 1x1 and 2x2 blocks for ``"multifrontal"``; the
+        identity for ``"llt"`` (where ``As[p][:, p] == L @ L.T``).
+        """
+        return self._impl.D()
+
+    def P(self):
+        """The fill-reducing permutation as an index array ``p`` (pivot ``k`` is row ``p[k]``).
+
+        ``As[p][:, p] == L @ D @ L.T``, the convention of scikit-sparse's ``Factor.P()``. For
+        ``ordering="natural"`` it is ``arange(n)`` unless ``"multifrontal"`` delayed pivots.
+
+        To sample ``x ~ N(0, As^{-1})`` for a positive definite ``As`` (a GMRF precision matrix),
+        solve ``L.T y = D^{-1/2} z`` with ``z ~ N(0, I)`` and scatter: ``x[p] = y``.
+        """
+        return self._impl.P()
 
     def solve(self, b):
         """Solve ``(A + shift*I) x = b``; ``b`` may be 1D or 2D (one system per column)."""

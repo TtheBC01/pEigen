@@ -7,6 +7,11 @@ All notable changes to pEigen are documented here. The project follows
 
 ### Added
 
+- `SparseCholesky.L()`, `D()` and `P()`: the factors as SciPy CSC matrices and the fill-reducing
+  permutation as an index array, with `(A + shift*I)[p][:, p] == L @ D @ L.T` (scikit-sparse's
+  convention) for every mode. `L` stores its diagonal (unit except for `llt`); `D` is diagonal, has
+  2x2 blocks for `multifrontal`, and is the identity for `llt`. This enables sampling from a
+  GMRF / Gaussian process given its precision matrix, and triangular solves with `L`.
 - `sparse.solve(..., method="cg", preconditioner="ichol")`: zero-fill incomplete Cholesky (Eigen
   `IncompleteCholesky`, in the matrix's own ordering), a symmetric preconditioner suited to CG. On
   2D 5-point Laplacians it roughly halves CG's iteration count (100x100: 186 → 77).

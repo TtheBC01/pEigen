@@ -120,6 +120,7 @@
             <tr><td><code>refactorize(a, shift=None)</code></td><td>New values with the same sparsity pattern: reruns only the numeric phase. Raises <code>ValueError</code> if the pattern differs.</td></tr>
             <tr><td><code>slogdet()</code> / <code>logdet()</code></td><td><code>(sign, log|det|)</code> as in <code>numpy.linalg.slogdet</code>, without overflow. <code>logdet()</code> requires a positive determinant.</td></tr>
             <tr><td><code>inertia</code></td><td><code>(positive, negative, zero)</code> eigenvalue counts, read off the pivots of D (Sylvester's law of inertia).</td></tr>
+            <tr><td><code>L()</code>, <code>D()</code>, <code>P()</code></td><td>The factors as SciPy CSC matrices and the permutation as an index array <code>p</code>, with <code>(A + shift·I)[p][:, p] == L @ D @ L.T</code> (scikit-sparse's convention). <code>L</code> stores its diagonal (unit except for <code>"llt"</code>); <code>D</code> is diagonal, has 2×2 blocks for <code>"multifrontal"</code>, and is the identity for <code>"llt"</code>. Use them to <a href="examples.html#sample">sample a GMRF</a> or for triangular solves.</td></tr>
             <tr><td><code>shift</code>, <code>mode</code>, <code>ordering</code>, <code>shape</code>, <code>factor_nnz</code></td><td>Settings, and the number of stored nonzeros in L (a measure of fill-in).</td></tr>
           </tbody>
         </table>

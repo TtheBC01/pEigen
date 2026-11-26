@@ -179,6 +179,32 @@ for kappa2 in [0.1, 1.0, 10.0]:
 <div class="output">Output:<pre>kappa2=  0.1  log p(y) = -52,765.8
 kappa2=  1.0  log p(y) = -59,618.6
 kappa2= 10.0  log p(y) = -147,803.2</pre></div>
+<h3 id="sample">Sampling a GMRF with <code>L()</code>, <code>D()</code> and <code>P()</code></h3>
+<p>The factors themselves turn a precision matrix into samples: solve <code>Lᵀ y = D<sup>−1/2</sup> z</code> and undo the permutation. Each sample costs one sparse triangular solve.</p>
+<div class="code-block"><span class="lang">python</span><pre><code class="language-python" data-example>import numpy as np
+import scipy.sparse as sp
+import scipy.sparse.linalg as spla
+from peigen import sparse
+
+# GMRF on a 100 x 100 grid with precision Q = (graph Laplacian) + kappa2 * I
+m, kappa2 = 100, 0.5
+t = sp.diags([-1.0, 2.0, -1.0], [-1, 0, 1], shape=(m, m))
+Q = (sp.kron(sp.eye(m), t) + sp.kron(t, sp.eye(m)) + kappa2 * sp.eye(m * m)).tocsc()
+n = Q.shape[0]
+
+fac = sparse.cholesky(Q)                  # Q[p][:, p] = L D L^T
+L, d, p = fac.L(), fac.D().diagonal(), fac.P()
+
+# x ~ N(0, Q^{-1}):  solve L^T y = D^{-1/2} z, then undo the permutation
+z = np.random.default_rng(0).standard_normal((n, 5))   # 5 independent samples
+y = spla.spsolve_triangular(L.T.tocsr(), z / np.sqrt(d)[:, None], lower=False, unit_diagonal=True)
+x = np.empty_like(y)
+x[p] = y
+
+print(x.shape)
+print(((x * (Q @ x)).sum(axis=0) / n).round(3))   # x^T Q x / n is close to 1 for each sample</code></pre></div>
+<div class="output">Output:<pre>(10000, 5)
+[1.005 1.02  0.988 0.991 1.011]</pre></div>
 <h3 id="kkt">Equality-constrained QP (KKT system)</h3>
 <p>Saddle-point matrices are symmetric but indefinite. <code>mode="multifrontal"</code> pivots with 1×1 and 2×2 blocks, and the inertia certifies that the solution is a minimizer.</p>
 <div class="code-block"><span class="lang">python</span><pre><code class="language-python" data-example>import numpy as np

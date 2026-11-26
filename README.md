@@ -317,6 +317,8 @@ up = sparse.cholesky(sp.triu(K), lower=False)  # only one triangle is read
 
 kkt = sparse.cholesky(K_indefinite, mode="multifrontal")  # pivoted LDL^T for indefinite matrices
 n_pos, n_neg, n_zero = kkt.inertia      # eigenvalue sign counts, from the pivots of D
+
+L, D, p = fac.L(), fac.D(), fac.P()      # the factors: K[p][:, p] == L @ D @ L.T (SciPy CSC)
 ```
 
 | Parameter | Description |
@@ -329,7 +331,7 @@ n_pos, n_neg, n_zero = kkt.inertia      # eigenvalue sign counts, from the pivot
 | `lower=True` | Read the lower triangle of `a`. `lower=False` reads the upper triangle. |
 | `shift=0.0` | Factorize `a + shift * I`. |
 
-`SparseCholesky` methods and properties: `solve(b)`, `refactorize(a, *, shift=None)` (`None` keeps the current shift), `slogdet()`, `logdet()`, `inertia` (`(positive, negative, zero)` eigenvalue counts, by Sylvester's law of inertia), `shape`, `mode`, `ordering`, `shift`, and `factor_nnz` (stored nonzeros in `L`, a measure of fill-in; for `multifrontal` it includes explicit zeros of merged fronts).
+`SparseCholesky` methods and properties: `solve(b)`, `refactorize(a, *, shift=None)` (`None` keeps the current shift), `slogdet()`, `logdet()`, `inertia` (`(positive, negative, zero)` eigenvalue counts, by Sylvester's law of inertia), `L()`, `D()` and `P()` (the factors as SciPy CSC matrices and the permutation as an index array, with `(A + shift*I)[p][:, p] == L @ D @ L.T` as in scikit-sparse; `L` has its diagonal stored, unit except for `llt`, and `D` is the identity for `llt` and has 2x2 blocks for `multifrontal`), `shape`, `mode`, `ordering`, `shift`, and `factor_nnz` (stored nonzeros in `L`, a measure of fill-in; for `multifrontal` it includes explicit zeros of merged fronts).
 
 **Requirements and behavior:**
 

@@ -14,13 +14,13 @@ Key facts:
 
 - [Install](https://peigentux.com/install.html): pip commands, supported platforms, building from source, checking the BLAS/LAPACK backend
 - [Algorithms](https://peigentux.com/algorithms.html): every function with its Eigen class or LAPACK routine, a "which solver should I use" table, and error conventions
-- [Examples](https://peigentux.com/examples.html): complete runnable programs (Poisson solve, time stepping with refactorize, GMRF log-likelihood, KKT systems, sparse LU, CG, dense least squares, PCA)
+- [Examples](https://peigentux.com/examples.html): complete runnable programs (Poisson solve, time stepping with refactorize, GMRF log-likelihood and sampling, KKT systems, sparse LU, CG, dense least squares, PCA)
 - [Benchmarks](https://peigentux.com/benchmarks.html): timings against NumPy, SciPy SuperLU and CHOLMOD, including where pEigen is slower
 
 ## API summary
 
 - `peigen.linalg.matmul(a, b)`; `solve(a, b, *, method="auto"|"lapack"|"eigen")` (LAPACK dgesv or Eigen PartialPivLU); `qr(a, *, mode="reduced"|"complete")` (Householder QR); `svd(a, *, full_matrices=False, method="auto"|"lapack"|"bdcsvd")` (dgesdd or Eigen BDCSVD); `eigh(a, *, lower=True, eigenvectors=True, method="auto"|"lapack"|"eigen")` and `eighvals(a, ...)` (dsyevd or SelfAdjointEigenSolver); `norm(a, ord=None, axis=None, keepdims=False)`.
-- `peigen.sparse.cholesky(a, *, mode="ldlt"|"llt"|"multifrontal", ordering="amd"|"natural", lower=True, shift=0.0)` returns `SparseCholesky` with `solve(b)`, `refactorize(a, *, shift=None)` (same sparsity pattern, numeric phase only), `slogdet()`, `logdet()`, `inertia` (positive, negative, zero eigenvalue counts), `factor_nnz`, `shift`, `mode`, `ordering`, `shape`. It factors `P (A + shift*I) P^T`, reads one triangle, raises `numpy.linalg.LinAlgError` on breakdown, and releases the GIL in `solve`.
+- `peigen.sparse.cholesky(a, *, mode="ldlt"|"llt"|"multifrontal", ordering="amd"|"natural", lower=True, shift=0.0)` returns `SparseCholesky` with `solve(b)`, `refactorize(a, *, shift=None)` (same sparsity pattern, numeric phase only), `slogdet()`, `logdet()`, `inertia` (positive, negative, zero eigenvalue counts), `L()`, `D()`, `P()` (factors as SciPy CSC and the permutation index array `p`, with `(A + shift*I)[p][:, p] == L @ D @ L.T`; `L` has its diagonal stored, unit except for llt; `D` has 2x2 blocks for multifrontal and is the identity for llt; sample x ~ N(0, As^{-1}) by solving `L.T y = D^{-1/2} z` and setting `x[p] = y`), `factor_nnz`, `shift`, `mode`, `ordering`, `shape`. It factors `P (A + shift*I) P^T`, reads one triangle, raises `numpy.linalg.LinAlgError` on breakdown, and releases the GIL in `solve`.
   - `mode="ldlt"` (default): Eigen SimplicialLDLT, for SPD matrices with low fill.
   - `mode="llt"`: SimplicialLLT; fails unless positive definite.
   - `mode="multifrontal"` (experimental): Eigen MultifrontalLDLT, with 1x1/2x2 threshold pivoting. Use it for symmetric indefinite (KKT/saddle-point) matrices and high-fill problems such as 3D meshes.

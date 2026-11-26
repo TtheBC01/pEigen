@@ -1,4 +1,5 @@
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <iomanip>
 #include <limits>
@@ -768,7 +769,29 @@ class CholeskyBackend {
   virtual Eigen::Index factor_nnz() const = 0;
   // (positive, negative, zero) pivot counts: the inertia of the factorized matrix by Sylvester's law.
   virtual std::array<Eigen::Index, 3> inertia() const = 0;
+  // The factors, in pivot order: A[p][:, p] = L D L^T for the shifted matrix, with p = pivot_order().
+  // L is lower triangular with its diagonal stored (unit for LDLT); D is diagonal, or block diagonal
+  // with 2x2 blocks for multifrontal LDLT, and the identity for LLT.
+  virtual Sparse factor_L() const = 0;
+  virtual Sparse factor_D() const = 0;
+  // p[k] is the row of the (shifted) input matrix that became pivot k.
+  virtual Eigen::VectorXi pivot_order() const = 0;
 };
+
+static Eigen::VectorXi pivot_order_from(const Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic, int> &pinv,
+                                        Eigen::Index n) {
+  // Eigen stores an empty permutation for the identity (natural ordering).
+  if (pinv.size() == 0) return Eigen::VectorXi::LinSpaced(n, 0, static_cast<int>(n - 1));
+  return pinv.indices();
+}
+
+static Sparse diagonal_sparse(const Vector &d) {
+  Sparse out(d.size(), d.size());
+  out.reserve(Eigen::VectorXi::Constant(d.size(), 1));
+  for (Eigen::Index i = 0; i < d.size(); ++i) out.insert(i, i) = d[i];
+  out.makeCompressed();
+  return out;
+}
 
 template <typename Solver, bool IsLDLT>
 class CholeskyBackendImpl final : public CholeskyBackend {
@@ -905,6 +928,30 @@ class CholeskyBackendImpl final : public CholeskyBackend {
   }
 
   Eigen::Index factor_nnz() const override { return solver_.matrixL().nestedExpression().nonZeros(); }
+
+  Sparse factor_L() const override {
+    Sparse L = solver_.matrixL().nestedExpression();
+    if constexpr (IsLDLT) {
+      // SimplicialLDLT stores L strictly lower; its unit diagonal is implicit.
+      Sparse identity(L.rows(), L.cols());
+      identity.setIdentity();
+      L = L + identity;
+    }
+    L.makeCompressed();
+    return L;
+  }
+
+  Sparse factor_D() const override {
+    if constexpr (IsLDLT) {
+      return diagonal_sparse(solver_.vectorD());
+    } else {
+      return diagonal_sparse(Vector::Ones(solver_.rows()));
+    }
+  }
+
+  Eigen::VectorXi pivot_order() const override {
+    return pivot_order_from(solver_.permutationPinv(), solver_.rows());
+  }
 
   std::array<Eigen::Index, 3> inertia() const override {
     const Eigen::Index n = solver_.rows();
@@ -1159,6 +1206,34 @@ class MultifrontalBackend final : public CholeskyBackend {
     return {solver_.numPositive(), solver_.numNegative(), solver_.numZero()};
   }
 
+  Sparse factor_L() const override {
+    Sparse L = solver_.matrixL();  // unit diagonal stored; keeps the explicit zeros of merged fronts
+    L.makeCompressed();
+    return L;
+  }
+
+  Sparse factor_D() const override {
+    const Vector &d = solver_.vectorD();
+    const Vector &sub = solver_.subDiagonal();
+    const Eigen::Index n = d.size();
+    std::vector<Eigen::Triplet<double, int>> entries;
+    entries.reserve(static_cast<std::size_t>(n) + 2 * static_cast<std::size_t>((sub.array() != 0.0).count()));
+    for (Eigen::Index k = 0; k < n; ++k) {
+      entries.emplace_back(static_cast<int>(k), static_cast<int>(k), d[k]);
+      if (k + 1 < n && sub[k] != 0.0) {  // pivots k and k+1 form a 2x2 block
+        entries.emplace_back(static_cast<int>(k + 1), static_cast<int>(k), sub[k]);
+        entries.emplace_back(static_cast<int>(k), static_cast<int>(k + 1), sub[k]);
+      }
+    }
+    Sparse out(n, n);
+    out.setFromTriplets(entries.begin(), entries.end());
+    return out;
+  }
+
+  Eigen::VectorXi pivot_order() const override {
+    return pivot_order_from(solver_.permutationPinv(), solver_.rows());
+  }
+
  private:
   Sparse shifted(const Sparse &a, double shift) const {
     Sparse out = a + shift * identity_;
@@ -1258,6 +1333,14 @@ class SparseCholesky {
   py::tuple inertia() const {
     const auto in = backend_->inertia();
     return py::make_tuple(in[0], in[1], in[2]);
+  }
+  py::object factor_L() const { return to_scipy_csc(backend_->factor_L()); }
+  py::object factor_D() const { return to_scipy_csc(backend_->factor_D()); }
+  py::array_t<std::int64_t> pivot_order() const {
+    const Eigen::VectorXi p = backend_->pivot_order();
+    py::array_t<std::int64_t> out(p.size());
+    std::copy(p.data(), p.data() + p.size(), out.mutable_data());
+    return out;
   }
   const std::string &mode() const { return mode_; }
   const std::string &ordering() const { return ordering_; }
@@ -1670,6 +1753,9 @@ PYBIND11_MODULE(_core, m) {
       .def_property_readonly("shape", [](const SparseCholesky &self) { return py::make_tuple(self.n(), self.n()); })
       .def_property_readonly("factor_nnz", &SparseCholesky::factor_nnz)
       .def_property_readonly("inertia", &SparseCholesky::inertia)
+      .def("L", &SparseCholesky::factor_L)
+      .def("D", &SparseCholesky::factor_D)
+      .def("P", &SparseCholesky::pivot_order)
       .def_property_readonly("mode", &SparseCholesky::mode)
       .def_property_readonly("ordering", &SparseCholesky::ordering)
       .def_property_readonly("shift", &SparseCholesky::shift);
