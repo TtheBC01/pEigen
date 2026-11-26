@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Examples: pEigen</title>
+<meta name="description" content="Copy-paste pEigen examples: Poisson solves, time stepping, GMRF log-likelihoods, KKT systems, sparse LU, conjugate gradient and dense least squares.">
+<link rel="canonical" href="https://peigentux.com/examples.html">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0e1726">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="pEigen">
+<meta property="og:title" content="Examples: pEigen">
+<meta property="og:description" content="Copy-paste pEigen examples: Poisson solves, time stepping, GMRF log-likelihoods, KKT systems, sparse LU, conjugate gradient and dense least squares.">
+<meta property="og:url" content="https://peigentux.com/examples.html">
+<meta name="twitter:card" content="summary">
+<link rel="alternate" type="text/plain" title="llms.txt" href="llms.txt">
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem("peigen-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+<script src="assets/site.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <nav class="wrap nav" aria-label="Main">
+    <a class="brand" href="./"><img src="assets/logo.svg" alt="" width="30" height="30">pEigen</a>
+    <button class="icon-btn menu-btn" type="button" data-menu-toggle aria-expanded="false" aria-controls="nav-links" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <ul class="nav-links" id="nav-links">
+      <li><a href="install.html">Install</a></li>
+      <li><a href="algorithms.html">Algorithms</a></li>
+      <li><a href="benchmarks.html">Benchmarks</a></li>
+      <li><a href="examples.html" aria-current="page">Examples</a></li>
+      <li><a href="https://github.com/TtheBC01/pEigen"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="width:18px;height:18px;vertical-align:-3px;margin-right:6px"><path d="M12 .5a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2.2c-3.3.7-4-1.4-4-1.4-.6-1.4-1.4-1.8-1.4-1.8-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.7 18.3 5 18.3 5c.7 1.7.3 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .5z"/></svg>GitHub</a></li>
+    </ul>
+    <button class="icon-btn" type="button" data-theme-toggle aria-label="Toggle dark theme"></button>
+  </nav>
+</header>
+<main id="main">
+<section class="page-head">
+  <div class="wrap">
+    <h1>Examples</h1>
+    <p>Complete, runnable programs: copy one into a file and run it. Each needs only <code>pip install "peigentux[sparse]"</code>. Outputs are from macOS on Apple silicon; the last digits can differ on other platforms.</p>
+  </div>
+</section>
+
+<div class="wrap docs">
+  <nav class="toc" aria-label="On this page">
+    <h2>On this page</h2>
+    <ul>
+      <li><a href="#dense">Dense linear algebra</a></li><li><a href="#poisson">Sparse direct solvers</a></li><li><a href="#cg">Iterative solvers</a></li><li><a href="#interop">Interoperability</a></li><li><a href="#check">Check your build</a></li>
+    </ul>
+  </nav>
+  <article>
+<section>
+<h2>Dense linear algebra</h2>
+<h3 id="dense">Solve, QR, SVD and norms</h3>
+<p>Dense routines mirror <code>numpy.linalg</code>: same shapes, same conventions.</p>
+<div class="code-block"><span class="lang">python</span><pre><code class="language-python" data-example>import numpy as np
+from peigen import linalg
+
+rng = np.random.default_rng(0)
+A = rng.standard_normal((500, 500)) + 50 * np.eye(500)
+B = rng.standard_normal((500, 3))
+
+X = linalg.solve(A, B)            # LU with partial pivoting (LAPACK dgesv)
+print(np.allclose(A @ X, B))      # True
+
+Q, R = linalg.qr(A)               # Householder QR: A = Q @ R
+U, s, Vt = linalg.svd(A)          # singular values in descending order
+print(f&quot;cond(A) = {s[0] / s[-1]:.2f}&quot;)
+print(f&quot;||A||_F = {linalg.norm(A):.1f}&quot;)</code></pre></div>
+<div class="output">Output:<pre>True
+cond(A) = 3.89
+||A||_F = 1223.6</pre></div>
+<h3 id="lstsq">Least-squares curve fit</h3>
+<p>Fit a quadratic with QR, or with the SVD when the design matrix may be rank deficient.</p>
+<div class="code-block"><span class="lang">python</span><pre><code class="language-python" data-example>import numpy as np
+from peigen import decomp
+
+rng = np.random.default_rng(1)
+t = np.linspace(0.0, 1.0, 200)
+y = 3.0 - 2.0 * t + 0.5 * t**2 + 0.01 * rng.standard_normal(t.size)
+A = np.vander(t, 3, increasing=True)   # columns: 1, t, t^2
+
+coef = decomp.QR(A).solve(y)           # least squares via QR (A has full column rank)
+print(coef.round(2))                   # [ 3.  -2.   0.5]
+
+svd = decomp.SVD(A)                    # minimum-norm least squares; also handles rank deficiency
+print(svd.solve(y).round(2))</code></pre></div>
+<div class="output">Output:<pre>[ 3.  -2.   0.5]
+[ 3.  -2.   0.5]</pre></div>
+<h3 id="pca">Principal components with <code>eigh</code></h3>
+<p>Eigen-decompose a covariance matrix. <code>eigh</code> reads one triangle and returns eigenvalues in ascending order.</p>
+<div class="code-block"><span class="lang">python</span><pre><code class="language-python" data-example>import numpy as np
+from peigen import linalg
+
+rng = np.random.default_rng(2)
+latent = rng.standard_normal((2000, 2))                    # 2 hidden factors ...
+X = latent @ rng.standard_normal((2, 6)) + 0.1 * rng.standard_normal((2000, 6))  # ... seen in 6 features
+C = np.cov(X, rowvar=False)
+
+w, V = linalg.eigh(C)                 # ascending eigenvalues, orthonormal eigenvectors (columns)
+w, V = w[::-1], V[:, ::-1]            # largest first
+print((w / w.sum()).round(3))         # first two components carry almost all the variance
+scores = (X - X.mean(axis=0)) @ V[:, :2]
+print(scores.shape)                   # (2000, 2)</code></pre></div>
+<div class="output">Output:<pre>[0.519 0.479 0.001 0.001 0.001 0.001]
+(2000, 2)</pre></div>
+</section>
+<section>
+<h2>Sparse direct solvers</h2>
+<h3 id="poisson">Poisson equation: factor once, solve many times</h3>
+<p>The basic sparse Cholesky workflow. One factorization serves any number of right-hand sides, and a 2D <code>b</code> is solved in one blocked pass.</p>
+<div class="code-block"><span class="lang">python</span><pre><code class="language-python" data-example>import numpy as np
+import scipy.sparse as sp
+from peigen import sparse
+
+def laplacian_2d(m):
+    &quot;&quot;&quot;5-point finite-difference Laplacian on an m x m grid (symmetric positive definite).&quot;&quot;&quot;
+    t = sp.diags([-1.0, 2.0, -1.0], [-1, 0, 1], shape=(m, m))
+    i = sp.eye(m)
+    return (sp.kron(i, t) + sp.kron(t, i)).tocsc()
+
+K = laplacian_2d(200)            # 40,000 x 40,000
+fac = sparse.cholesky(K)         # AMD ordering + L D L^T, computed once
+
+b = np.ones(K.shape[0])
+x = fac.solve(b)
+print(f&quot;residual: {np.linalg.norm(K @ x - b):.1e}&quot;)
+
+B = np.random.default_rng(0).standard_normal((K.shape[0], 32))
+X = fac.solve(B)                 # 32 right-hand sides in one blocked pass
+print(X.shape, f&quot;nnz(L) = {fac.factor_nnz:,}&quot;)</code></pre></div>
+<div class="output">Output:<pre>residual: 3.7e-10
+(40000, 32) nnz(L) = 1,099,835</pre></div>
+<h3 id="heat">Time stepping with <code>refactorize</code> and <code>shift</code></h3>
+<p>Implicit Euler needs <code>I + dt·K</code>. Factor <code>K + I/dt</code> through <code>shift</code>, then change the step size without repeating the symbolic analysis.</p>
+<div class="code-block"><span class="lang">python</span><pre><code class="language-python" data-example>import numpy as np
+import scipy.sparse as sp
+from peigen import sparse
+
+# Implicit Euler for u&#x27; = -K u:  (I + dt K) u_new = u,  i.e.  (K + I/dt) u_new = u / dt
+m = 100
+t = sp.diags([-1.0, 2.0, -1.0], [-1, 0, 1], shape=(m, m))
+K = (sp.kron(sp.eye(m), t) + sp.kron(t, sp.eye(m))).tocsc() * m**2   # -Laplacian, h = 1/m
+
+u = np.zeros(m * m)
+u[(m // 2) * m + m // 2] = m**2             # unit heat pulse in the middle
+dt = 1e-4
+fac = sparse.cholesky(K, shift=1.0 / dt)     # factorize K + I/dt
+
+for step in range(40):
+    u = fac.solve(u / dt)
+    if step == 9:                            # transient has decayed: take bigger steps
+        dt *= 10
+        fac.refactorize(K, shift=1.0 / dt)   # same pattern: numeric phase only
+
+print(f&quot;remaining heat: {u.sum() / m**2:.4f}&quot;)</code></pre></div>
+<div class="output">Output:<pre>remaining heat: 0.8348</pre></div>
+<h3 id="gmrf">Gaussian Markov random field log-likelihood</h3>
+<p>Log-determinants of sparse precision matrices, the expensive part of GMRF and sparse Gaussian-process likelihoods. <code>refactorize</code> sweeps a hyperparameter cheaply.</p>
+<div class="code-block"><span class="lang">python</span><pre><code class="language-python" data-example>import numpy as np
+import scipy.sparse as sp
+from peigen import sparse
+
+# Gaussian Markov random field on a grid: precision Q = L + kappa2 * I (L = graph Laplacian)
+m = 150
+t = sp.diags([-1.0, 2.0, -1.0], [-1, 0, 1], shape=(m, m))
+L = (sp.kron(sp.eye(m), t) + sp.kron(t, sp.eye(m))).tocsc()
+n = L.shape[0]
+y = np.random.default_rng(0).standard_normal(n)
+
+fac = sparse.cholesky(L, shift=1.0)
+for kappa2 in [0.1, 1.0, 10.0]:
+    fac.refactorize(L, shift=kappa2)         # Q = L + kappa2 * I, reusing the symbolic analysis
+    quad = y @ (L @ y) + kappa2 * (y @ y)    # y^T Q y
+    loglik = 0.5 * fac.logdet() - 0.5 * quad - 0.5 * n * np.log(2 * np.pi)
+    print(f&quot;kappa2={kappa2:5.1f}  log p(y) = {loglik:,.1f}&quot;)</code></pre></div>
+<div class="output">Output:<pre>kappa2=  0.1  log p(y) = -52,765.8
+kappa2=  1.0  log p(y) = -59,618.6
+kappa2= 10.0  log p(y) = -147,803.2</pre></div>
+<h3 id="kkt">Equality-constrained QP (KKT system)</h3>
+<p>Saddle-point matrices are symmetric but indefinite. <code>mode="multifrontal"</code> pivots with 1×1 and 2×2 blocks, and the inertia certifies that the solution is a minimizer.</p>
+<div class="code-block"><span class="lang">python</span><pre><code class="language-python" data-example>import numpy as np
+import scipy.sparse as sp
+from peigen import sparse
+
+# minimize 1/2 x^T H x - c^T x  subject to  A x = b
+rng = np.random.default_rng(0)
+n, m = 500, 50
+H = sp.diags([-1.0, 4.0, -1.0], [-1, 0, 1], shape=(n, n))
+A = sp.random(m, n, density=0.05, random_state=1) + sp.eye(m, n)
+c, b = rng.standard_normal(n), rng.standard_normal(m)
+
+K = sp.bmat([[H, A.T], [A, None]], format=&quot;csc&quot;)   # symmetric indefinite saddle-point matrix
+kkt = sparse.cholesky(K, mode=&quot;multifrontal&quot;)      # pivoted L D L^T with 1x1 / 2x2 pivots
+
+print(kkt.inertia)        # (500, 50, 0): n positive, m negative -&gt; unique minimizer
+sol = kkt.solve(np.concatenate([c, b]))
+x, lam = sol[:n], sol[n:]
+print(f&quot;constraint violation: {np.abs(A @ x - b).max():.1e}&quot;)</code></pre></div>
+<div class="output">Output:<pre>(500, 50, 0)
+constraint violation: 1.8e-15</pre></div>
+<h3 id="convdiff">Nonsymmetric systems: sparse LU and BiCGSTAB</h3>
+<p>For matrices that aren't symmetric, use a reusable sparse LU, or BiCGSTAB when a factorization is too expensive.</p>
+<div class="code-block"><span class="lang">python</span><pre><code class="language-python" data-example>import numpy as np
+import scipy.sparse as sp
+from peigen import sparse
+
+# Nonsymmetric: 1D convection-diffusion  -eps u&#x27;&#x27; + u&#x27; = f  (upwind differences)
+n, eps = 500, 0.1
+h = 1.0 / (n + 1)
+diffusion = sp.diags([-1.0, 2.0, -1.0], [-1, 0, 1], shape=(n, n)) * (eps / h**2)
+convection = sp.diags([-1.0, 1.0], [-1, 0], shape=(n, n)) / h
+A = (diffusion + convection).tocsc()
+
+lu = sparse.factorize(A)                  # Eigen SparseLU, reusable
+F = np.ones((n, 4)) * np.arange(1, 5)     # four right-hand sides
+U = lu.solve(F)
+print(U.shape, f&quot;max residual: {np.abs(A @ U - F).max():.1e}&quot;)
+
+u = sparse.solve(A, F[:, 0], method=&quot;bicgstab&quot;, tol=1e-10, maxiter=20000)
+print(f&quot;BiCGSTAB relative residual: {np.linalg.norm(A @ u - F[:, 0]) / np.linalg.norm(F[:, 0]):.1e}&quot;)</code></pre></div>
+<div class="output">Output:<pre>(500, 4) max residual: 2.8e-11
+BiCGSTAB relative residual: 7.8e-11</pre></div>
+</section>
+<section>
+<h2>Iterative solvers</h2>
+<h3 id="cg">Conjugate gradient and preconditioners</h3>
+<p><code>solve_stats</code> reports the iteration count, which makes comparing preconditioners easy. Jacobi pays off when the diagonal varies a lot.</p>
+<div class="code-block"><span class="lang">python</span><pre><code class="language-python" data-example>import numpy as np
+import scipy.sparse as sp
+from peigen import sparse
+
+m = 100
+t = sp.diags([-1.0, 2.0, -1.0], [-1, 0, 1], shape=(m, m))
+lap = sp.kron(sp.eye(m), t) + sp.kron(t, sp.eye(m))
+d = sp.diags(np.random.default_rng(0).uniform(1.0, 5.0, m * m))
+K = (d @ lap @ d).tocsc()          # SPD, with a widely varying diagonal
+b = np.ones(K.shape[0])
+
+for pre in [&quot;none&quot;, &quot;jacobi&quot;]:
+    stats = sparse.solve_stats(K, b, method=&quot;cg&quot;, preconditioner=pre, tol=1e-8)
+    print(f&quot;{pre:&gt;6}: {stats[&#x27;iterations&#x27;]:4d} iterations&quot;)
+
+x = sparse.solve(K, b, method=&quot;cg&quot;, preconditioner=&quot;jacobi&quot;, tol=1e-10)
+print(f&quot;relative residual: {np.linalg.norm(K @ x - b) / np.linalg.norm(b):.1e}&quot;)</code></pre></div>
+<div class="output">Output:<pre>  none:  681 iterations
+jacobi:  302 iterations
+relative residual: 9.5e-11</pre></div>
+</section>
+<section>
+<h2>Interoperability</h2>
+<h3 id="interop">Sparse products with any SciPy format</h3>
+<p>Inputs can be CSR, CSC, COO, or <code>*_array</code> types; they are converted internally and never modified.</p>
+<div class="code-block"><span class="lang">python</span><pre><code class="language-python" data-example>import numpy as np
+import scipy.sparse as sp
+from peigen import sparse
+
+A = sp.random(1000, 800, density=0.01, format=&quot;csr&quot;, random_state=0)   # any SciPy format
+B = np.random.default_rng(0).standard_normal((800, 16))
+
+Y = sparse.spmm(A, B)              # sparse @ dense -&gt; ndarray
+C = sparse.spspmm(A, A.T)          # sparse @ sparse -&gt; scipy.sparse CSC
+print(np.allclose(Y, A @ B), C.format, C.shape)</code></pre></div>
+<div class="output">Output:<pre>True csc (1000, 1000)</pre></div>
+</section>
+<section id="check"><h2>Check your build</h2><p>Confirm which BLAS/LAPACK backend your installed wheel uses:</p><div class="code-block"><span class="lang">python</span><pre><code class="language-python">import peigen
+
+peigen.show_build_config()
+print(peigen.build_config()[&quot;lapack_backend&quot;])</code></pre></div></section>
+  </article>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <h2>Documentation</h2>
+        <ul>
+          <li><a href="install.html">Install</a></li>
+          <li><a href="algorithms.html">Algorithms</a></li>
+          <li><a href="benchmarks.html">Benchmarks</a></li>
+          <li><a href="examples.html">Examples</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Project</h2>
+        <ul>
+          <li><a href="https://github.com/TtheBC01/pEigen">Source on GitHub</a></li>
+          <li><a href="https://pypi.org/project/peigentux/">PyPI: peigentux</a></li>
+          <li><a href="https://github.com/TtheBC01/pEigen/blob/main/CHANGELOG.md">Changelog</a></li>
+          <li><a href="https://github.com/TtheBC01/pEigen/releases">Releases</a></li>
+          <li><a href="https://github.com/TtheBC01/pEigen/issues">Report an issue</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Built on</h2>
+        <ul>
+          <li><a href="https://eigen.tuxfamily.org">Eigen</a></li>
+          <li><a href="https://numpy.org">NumPy</a></li>
+          <li><a href="https://scipy.org">SciPy</a></li>
+          <li><a href="https://pybind11.readthedocs.io">pybind11</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>For tools</h2>
+        <ul>
+          <li><a href="llms.txt">llms.txt</a></li>
+          <li><a href="sitemap.xml">sitemap.xml</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 pEigen contributors. MIT licensed; bundles Eigen under MPL-2.0.</span>
+      <span>pEigen is an independent project built on Eigen.</span>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

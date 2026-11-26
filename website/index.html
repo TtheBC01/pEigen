@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pEigen: Eigen-powered linear algebra for Python</title>
+<meta name="description" content="pEigen brings Eigen&#x27;s dense and sparse solvers to Python with a NumPy/SciPy-native API: sparse Cholesky and LDLT without SuiteSparse, LU, QR, SVD, eigh, CG and BiCGSTAB.">
+<link rel="canonical" href="https://peigentux.com/">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0e1726">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="pEigen">
+<meta property="og:title" content="pEigen: Eigen-powered linear algebra for Python">
+<meta property="og:description" content="pEigen brings Eigen&#x27;s dense and sparse solvers to Python with a NumPy/SciPy-native API: sparse Cholesky and LDLT without SuiteSparse, LU, QR, SVD, eigh, CG and BiCGSTAB.">
+<meta property="og:url" content="https://peigentux.com/">
+<meta name="twitter:card" content="summary">
+<link rel="alternate" type="text/plain" title="llms.txt" href="llms.txt">
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem("peigen-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+<script src="assets/site.js" defer></script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "pEigen", "alternateName": "peigentux", "description": "Eigen-powered dense and sparse linear algebra for Python with a NumPy/SciPy-native API, including sparse Cholesky without SuiteSparse.", "url": "https://peigentux.com/", "codeRepository": "https://github.com/TtheBC01/pEigen", "programmingLanguage": ["Python", "C++"], "license": "https://opensource.org/licenses/MIT", "version": "2.1.0", "keywords": "linear algebra, sparse Cholesky, Eigen, NumPy, SciPy, LDLT"}</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <nav class="wrap nav" aria-label="Main">
+    <a class="brand" href="./"><img src="assets/logo.svg" alt="" width="30" height="30">pEigen</a>
+    <button class="icon-btn menu-btn" type="button" data-menu-toggle aria-expanded="false" aria-controls="nav-links" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <ul class="nav-links" id="nav-links">
+      <li><a href="install.html">Install</a></li>
+      <li><a href="algorithms.html">Algorithms</a></li>
+      <li><a href="benchmarks.html">Benchmarks</a></li>
+      <li><a href="examples.html">Examples</a></li>
+      <li><a href="https://github.com/TtheBC01/pEigen"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="width:18px;height:18px;vertical-align:-3px;margin-right:6px"><path d="M12 .5a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2.2c-3.3.7-4-1.4-4-1.4-.6-1.4-1.4-1.8-1.4-1.8-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.7 18.3 5 18.3 5c.7 1.7.3 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .5z"/></svg>GitHub</a></li>
+    </ul>
+    <button class="icon-btn" type="button" data-theme-toggle aria-label="Toggle dark theme"></button>
+  </nav>
+</header>
+<main id="main">
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-logo">
+      <img src="assets/logo.svg" alt="" width="72" height="72">
+      <h1>pEigen</h1>
+    </div>
+    <p class="tagline">Eigen-powered dense and sparse linear algebra for Python, with a NumPy and SciPy native API.</p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="install.html">Get started</a>
+      <a class="btn btn-ghost" href="examples.html">See examples</a>
+    </div>
+    <div class="install-pill" data-copy="pip install peigentux">
+      <span class="prompt">$</span><code>pip install peigentux</code>
+    </div>
+  </div>
+</section>
+
+<section class="banner" aria-label="Latest release">
+  <div class="wrap">
+    <a href="https://github.com/TtheBC01/pEigen/releases/tag/v2.1.0">pEigen 2.1.0 released: multifrontal sparse LDLᵀ for indefinite systems</a>
+    <span class="date"><time datetime="2026-11-25">2026-11-25</time></span>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="grid grid-3">
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 4v16h16"/><path d="M8 16l4-5 3 3 5-7"/></svg></div>
+        <h3>Fundamental solvers</h3>
+        <p>Dense LU, QR, SVD and symmetric eigensolvers; sparse LU, sparse Cholesky and LDLᵀ, and the CG and BiCGSTAB iterative solvers.</p>
+        <a class="more" href="algorithms.html">Browse the algorithms →</a>
+      </div>
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17.5h7M17.5 14v7"/></svg></div>
+        <h3>NumPy and SciPy native</h3>
+        <p>Functions take NumPy arrays and any <code>scipy.sparse</code> format, and return arrays and CSC matrices. Your inputs are never modified.</p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 5h3M5 9h6M5 13h9M5 17h12"/></svg></div>
+        <h3>Sparse Cholesky, no SuiteSparse</h3>
+        <p>Factor once, solve many times, and refactorize when only the values change. Log-determinants, diagonal shifts and inertia are built in.</p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></div>
+        <h3>Performant</h3>
+        <p>Compiled Eigen kernels linked against Accelerate or OpenBLAS, with blocked solves for many right-hand sides.</p>
+        <a class="more" href="benchmarks.html">See the benchmarks →</a>
+      </div>
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/></svg></div>
+        <h3>Easy to install</h3>
+        <p>Prebuilt wheels for CPython 3.10–3.15 on Linux (x86_64, aarch64) and macOS (Apple silicon, Intel). No compiler needed.</p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l-6-6 6-6M15 6l6 6-6 6"/></svg></div>
+        <h3>Open source</h3>
+        <p>MIT licensed and developed in public <a href="https://github.com/TtheBC01/pEigen">on GitHub</a>. It bundles <a href="https://eigen.tuxfamily.org">Eigen</a> under MPL-2.0.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <h2>What pEigen is for</h2>
+    <p class="section-intro">pEigen is a thin, well-tested layer over Eigen for Python users who want its solvers without writing C++. It is most useful when you solve with the same matrix many times, or need a factorization SciPy doesn't expose.</p>
+    <ul class="usecases">
+      <li><strong>PDE and finite-element solves</strong><span>Factor a sparse SPD stiffness matrix once and reuse it across load cases, or refactorize as values change in time stepping.</span></li>
+      <li><strong>Gaussian processes and GMRFs</strong><span>Exact log-determinants of sparse precision matrices, with a jitter or hyperparameter shift applied without rebuilding the matrix.</span></li>
+      <li><strong>Constrained optimization</strong><span>Solve KKT and saddle-point systems with pivoted LDLᵀ, and check the inertia to confirm a minimizer.</span></li>
+      <li><strong>Graphs and point clouds</strong><span>Graph Laplacian solves for spectral methods, smoothing and label propagation.</span></li>
+      <li><strong>Permissively licensed stacks</strong><span>Sparse Cholesky without SuiteSparse, in a package that is MIT plus MPL-2.0 end to end.</span></li>
+      <li><strong>Everyday dense linear algebra</strong><span>Solve, QR, SVD and eigh with NumPy semantics, backed by LAPACK where it is available.</span></li>
+    </ul>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap grid grid-start">
+    <div>
+      <h2>Get started in a minute</h2>
+      <p>Install the wheel. The PyPI package is named <code>peigentux</code>, and you import it as <code>peigen</code>. Add the <code>sparse</code> extra to pull in SciPy for the sparse routines.</p>
+      <div class="code-block"><span class="lang">bash</span><pre><code class="language-bash">pip install "peigentux[sparse]"</code></pre></div>
+      <p>Then factor a sparse matrix and reuse the factorization:</p>
+      <p><a class="btn btn-primary" href="examples.html">More copy-paste examples</a></p>
+    </div>
+    <div class="code-block"><span class="lang">python</span><pre><code class="language-python" data-example>import numpy as np
+import scipy.sparse as sp
+from peigen import sparse
+
+# 2D Poisson matrix, 200 x 200 grid
+t = sp.diags([-1.0, 2.0, -1.0], [-1, 0, 1], shape=(200, 200))
+K = (sp.kron(sp.eye(200), t) + sp.kron(t, sp.eye(200))).tocsc()
+
+fac = sparse.cholesky(K)    # L D L^T, computed once
+x = fac.solve(np.ones(K.shape[0]))
+X = fac.solve(np.eye(K.shape[0], 32))  # 32 RHS at once
+sign, logdet = fac.slogdet()</code></pre></div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <h2>Performance at a glance</h2>
+    <p class="section-intro">Single-threaded on an Apple M1 Pro, against SciPy's SuperLU and CHOLMOD (via scikit-sparse). CHOLMOD is still faster at factorizing 3D meshes; the <a href="benchmarks.html">benchmarks page</a> has every number, including the cases pEigen loses.</p>
+    <div class="stats">
+      <div class="stat"><div class="value">1.8–6×</div><div class="label">faster sparse Cholesky factorization than SciPy's default <code>splu</code> on 2D meshes and graphs</div></div>
+      <div class="stat"><div class="value">3–9×</div><div class="label">faster 3D-mesh factorization with <code>mode="multifrontal"</code> than the default simplicial LDLᵀ</div></div>
+      <div class="stat"><div class="value">1.1–4.4×</div><div class="label">faster 32-right-hand-side solves than CHOLMOD's best mode, on every problem tested</div></div>
+    </div>
+  </div>
+</section>
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <h2>Documentation</h2>
+        <ul>
+          <li><a href="install.html">Install</a></li>
+          <li><a href="algorithms.html">Algorithms</a></li>
+          <li><a href="benchmarks.html">Benchmarks</a></li>
+          <li><a href="examples.html">Examples</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Project</h2>
+        <ul>
+          <li><a href="https://github.com/TtheBC01/pEigen">Source on GitHub</a></li>
+          <li><a href="https://pypi.org/project/peigentux/">PyPI: peigentux</a></li>
+          <li><a href="https://github.com/TtheBC01/pEigen/blob/main/CHANGELOG.md">Changelog</a></li>
+          <li><a href="https://github.com/TtheBC01/pEigen/releases">Releases</a></li>
+          <li><a href="https://github.com/TtheBC01/pEigen/issues">Report an issue</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Built on</h2>
+        <ul>
+          <li><a href="https://eigen.tuxfamily.org">Eigen</a></li>
+          <li><a href="https://numpy.org">NumPy</a></li>
+          <li><a href="https://scipy.org">SciPy</a></li>
+          <li><a href="https://pybind11.readthedocs.io">pybind11</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>For tools</h2>
+        <ul>
+          <li><a href="llms.txt">llms.txt</a></li>
+          <li><a href="sitemap.xml">sitemap.xml</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 pEigen contributors. MIT licensed; bundles Eigen under MPL-2.0.</span>
+      <span>pEigen is an independent project built on Eigen.</span>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

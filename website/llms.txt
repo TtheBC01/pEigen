@@ -1,0 +1,44 @@
+# pEigen
+
+> pEigen is a Python package that exposes Eigen's dense and sparse linear algebra through a NumPy/SciPy-native API. It is installed with `pip install peigentux` (or `pip install "peigentux[sparse]"` for the SciPy-based sparse routines) and imported as `peigen`. Its main feature is a reusable sparse Cholesky / LDLᵀ factorization that needs no SuiteSparse. MIT licensed; bundles Eigen under MPL-2.0.
+
+Key facts:
+
+- The distribution name is `peigentux`, but the import name is `peigen`. `pip install peigen` installs an unrelated project.
+- Current version: 2.1.0. Wheels for CPython 3.10–3.15 on Linux (x86_64, aarch64; OpenBLAS) and macOS (arm64, x86_64; Accelerate). No Windows, musllinux or free-threaded wheels.
+- All routines work in real float64. Integer and float32 input is converted; complex input raises TypeError.
+- Sparse input may be any SciPy sparse format (`*_matrix` or `*_array`); it is never modified in place. Dimensions and nonzero counts must fit in 32-bit indices.
+- Modules: `peigen.linalg` (dense), `peigen.sparse` (sparse; needs SciPy), `peigen.decomp` (reusable decomposition objects). `peigen.show_build_config()` reports the linked BLAS/LAPACK.
+
+## Docs
+
+- [Install](https://peigentux.com/install.html): pip commands, supported platforms, building from source, checking the BLAS/LAPACK backend
+- [Algorithms](https://peigentux.com/algorithms.html): every function with its Eigen class or LAPACK routine, a "which solver should I use" table, and error conventions
+- [Examples](https://peigentux.com/examples.html): complete runnable programs (Poisson solve, time stepping with refactorize, GMRF log-likelihood, KKT systems, sparse LU, CG, dense least squares, PCA)
+- [Benchmarks](https://peigentux.com/benchmarks.html): timings against NumPy, SciPy SuperLU and CHOLMOD, including where pEigen is slower
+
+## API summary
+
+- `peigen.linalg.matmul(a, b)`; `solve(a, b, *, method="auto"|"lapack"|"eigen")` (LAPACK dgesv or Eigen PartialPivLU); `qr(a, *, mode="reduced"|"complete")` (Householder QR); `svd(a, *, full_matrices=False, method="auto"|"lapack"|"bdcsvd")` (dgesdd or Eigen BDCSVD); `eigh(a, *, lower=True, eigenvectors=True, method="auto"|"lapack"|"eigen")` and `eighvals(a, ...)` (dsyevd or SelfAdjointEigenSolver); `norm(a, ord=None, axis=None, keepdims=False)`.
+- `peigen.sparse.cholesky(a, *, mode="ldlt"|"llt"|"multifrontal", ordering="amd"|"natural", lower=True, shift=0.0)` returns `SparseCholesky` with `solve(b)`, `refactorize(a, *, shift=None)` (same sparsity pattern, numeric phase only), `slogdet()`, `logdet()`, `inertia` (positive, negative, zero eigenvalue counts), `factor_nnz`, `shift`, `mode`, `ordering`, `shape`. It factors `P (A + shift*I) P^T`, reads one triangle, raises `numpy.linalg.LinAlgError` on breakdown, and releases the GIL in `solve`.
+  - `mode="ldlt"` (default): Eigen SimplicialLDLT, for SPD matrices with low fill.
+  - `mode="llt"`: SimplicialLLT; fails unless positive definite.
+  - `mode="multifrontal"` (experimental): Eigen MultifrontalLDLT, with 1x1/2x2 threshold pivoting. Use it for symmetric indefinite (KKT/saddle-point) matrices and high-fill problems such as 3D meshes.
+- `peigen.sparse.factorize(a)` returns `SparseFactorized` (Eigen SparseLU) with `solve(b)`, for general square matrices.
+- `peigen.sparse.solve(a, b, *, method="auto"|"lu"|"cholesky"|"cg"|"bicgstab", tol=1e-8, maxiter=None, preconditioner="none"|"jacobi"|"ilu", ilu_fill_factor=10, ilu_drop_tol=1e-4)`. Iterative methods raise RuntimeError if they do not converge. `solve_stats(a, b, method="cg", ...)` returns `{"iterations", "error"}`.
+- `peigen.sparse.spmm(a, b)` (sparse @ dense), `spspmm(a, b)` (sparse @ sparse, returns CSC), `to_dense(a)`, `from_coo(data, row, col, shape)`.
+- `peigen.decomp.SVD(a, full_matrices=False).solve(b, rcond=None)` (minimum-norm least squares; rcond relative to max singular value); `peigen.decomp.QR(a, mode="reduced").solve(b)` (square or tall, full column rank); `decomp.SparseFactorized`, `decomp.SparseCholesky` (aliases of the sparse classes).
+
+## Usage notes
+
+- Prefer `sparse.cholesky` over `sparse.solve(..., method="lu")` for symmetric positive definite matrices; keep the factorization object to solve with more right-hand sides later.
+- A 2D right-hand side `b` of shape (n, k) is solved in one blocked pass; that is much faster than looping over columns.
+- For symmetric indefinite matrices use `mode="multifrontal"`; `mode="ldlt"` does not pivot for stability.
+- CG with `preconditioner="ilu"` uses a nonsymmetric incomplete LU and may not converge with the default `ilu_fill_factor=10`; use `"jacobi"`, a larger fill factor, or a direct Cholesky factorization.
+
+## Optional
+
+- [Source code](https://github.com/TtheBC01/pEigen): repository, issues and README
+- [Changelog](https://github.com/TtheBC01/pEigen/blob/main/CHANGELOG.md): release notes and the 1.0 → 2.0 migration table
+- [PyPI project](https://pypi.org/project/peigentux/): released wheels and sdist
+- [Eigen](https://eigen.tuxfamily.org): the underlying C++ library

@@ -87,3 +87,22 @@ For local experiments:
 ```bash
 CMAKE_ARGS="-DPEIGEN_USE_OPENMP=ON" python -m pip install -e .
 ```
+
+## Website
+
+`website/` is the static site for [peigentux.com](https://peigentux.com): plain HTML, CSS and
+JavaScript with no build step. Edit the files directly and preview them with any static server:
+
+```bash
+python -m http.server 8765 --directory website
+```
+
+- Each page repeats the shared header and footer, so a nav change touches every `*.html` file.
+- Python code blocks marked `data-example` are executed by `tests/test_website_examples.py`, so
+  keep them self-contained and runnable. The "Output" shown under each example is static text.
+- Benchmark figures come from the scripts in `benchmarks/`. The sparse Cholesky chart reads
+  `website/assets/bench-cholesky-data.js`; the dense and sparse tables are static HTML. Refresh
+  them (and `lastmod` in `sitemap.xml`) after re-running the benchmarks.
+- `.github/workflows/pages.yml` deploys `website/` to GitHub Pages on every push to `main` that
+  touches it. One-time setup: Settings → Pages → Source "GitHub Actions", custom domain
+  `peigentux.com`, plus DNS records at the domain registrar.

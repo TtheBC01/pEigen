@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Install pEigen</title>
+<meta name="description" content="Install pEigen with pip install peigentux. Wheels for CPython 3.10–3.15 on Linux and macOS, with OpenBLAS or Accelerate.">
+<link rel="canonical" href="https://peigentux.com/install.html">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0e1726">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="pEigen">
+<meta property="og:title" content="Install pEigen">
+<meta property="og:description" content="Install pEigen with pip install peigentux. Wheels for CPython 3.10–3.15 on Linux and macOS, with OpenBLAS or Accelerate.">
+<meta property="og:url" content="https://peigentux.com/install.html">
+<meta name="twitter:card" content="summary">
+<link rel="alternate" type="text/plain" title="llms.txt" href="llms.txt">
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem("peigen-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+<script src="assets/site.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <nav class="wrap nav" aria-label="Main">
+    <a class="brand" href="./"><img src="assets/logo.svg" alt="" width="30" height="30">pEigen</a>
+    <button class="icon-btn menu-btn" type="button" data-menu-toggle aria-expanded="false" aria-controls="nav-links" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <ul class="nav-links" id="nav-links">
+      <li><a href="install.html" aria-current="page">Install</a></li>
+      <li><a href="algorithms.html">Algorithms</a></li>
+      <li><a href="benchmarks.html">Benchmarks</a></li>
+      <li><a href="examples.html">Examples</a></li>
+      <li><a href="https://github.com/TtheBC01/pEigen"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="width:18px;height:18px;vertical-align:-3px;margin-right:6px"><path d="M12 .5a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2.2c-3.3.7-4-1.4-4-1.4-.6-1.4-1.4-1.8-1.4-1.8-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.7 18.3 5 18.3 5c.7 1.7.3 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .5z"/></svg>GitHub</a></li>
+    </ul>
+    <button class="icon-btn" type="button" data-theme-toggle aria-label="Toggle dark theme"></button>
+  </nav>
+</header>
+<main id="main">
+<section class="page-head">
+  <div class="wrap">
+    <h1>Install</h1>
+    <p>pEigen is published on PyPI as <code>peigentux</code> and imported as <code>peigen</code>. Wheels are prebuilt, so on supported platforms you don't need a compiler.</p>
+  </div>
+</section>
+
+<div class="wrap docs">
+  <nav class="toc" aria-label="On this page">
+    <h2>On this page</h2>
+    <ul>
+      <li><a href="#pip">pip</a></li>
+      <li><a href="#platforms">Platforms</a></li>
+      <li><a href="#verify">Check your install</a></li>
+      <li><a href="#source">Build from source</a></li>
+      <li><a href="#names">Package names</a></li>
+    </ul>
+  </nav>
+  <article>
+    <section id="pip">
+      <h2>Install with pip</h2>
+      <p>The dense routines need only NumPy:</p>
+      <div class="code-block"><span class="lang">bash</span><pre><code class="language-bash">pip install peigentux</code></pre></div>
+      <p>The sparse routines (<code>peigen.sparse</code>, sparse Cholesky, iterative solvers) also need SciPy. The <code>sparse</code> extra installs it:</p>
+      <div class="code-block"><span class="lang">bash</span><pre><code class="language-bash">pip install "peigentux[sparse]"</code></pre></div>
+      <p>To pin it in a project, add <code>peigentux&gt;=2.1</code> to your requirements or to <code>dependencies</code> in <code>pyproject.toml</code>. With uv: <code>uv add "peigentux[sparse]"</code>.</p>
+    </section>
+
+    <section id="platforms">
+      <h2>Supported platforms</h2>
+      <p>Every wheel is built and tested in CI, and the tests fail if BLAS/LAPACK wasn't linked, so a slow fallback build can't ship by accident.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Operating system</th><th>Architectures</th><th>BLAS / LAPACK</th><th>Python</th></tr></thead>
+          <tbody>
+            <tr><td>Linux (glibc 2.28+, manylinux_2_28)</td><td>x86_64, aarch64</td><td>OpenBLAS, bundled in the wheel</td><td>CPython 3.10–3.15</td></tr>
+            <tr><td>macOS</td><td>arm64 (Apple silicon), x86_64 (Intel)</td><td>Apple Accelerate</td><td>CPython 3.10–3.15</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Not yet available as wheels:</p>
+      <ul>
+        <li><strong>Windows.</strong> Not built or tested yet.</li>
+        <li><strong>Alpine and other musl-based Linux.</strong> pip falls back to the source distribution (see below).</li>
+        <li><strong>Free-threaded Python</strong> (<code>python3.14t</code>, <code>python3.15t</code>). The extension doesn't declare support for running without the GIL yet.</li>
+      </ul>
+    </section>
+
+    <section id="verify">
+      <h2>Check your install</h2>
+      <p>Print what was compiled into the extension you installed:</p>
+      <div class="code-block"><span class="lang">bash</span><pre><code class="language-bash">python -c "import peigen; peigen.show_build_config()"</code></pre></div>
+      <div class="output">Example output on macOS (Apple silicon):
+<pre>pEigen build configuration
+--------------------------
+version:               2.1.0
+eigen_version:         5.0.1-dev+master
+build_type:            Release
+blas_enabled:          True
+blas_backend:          accelerate
+lapack_enabled:        True
+lapack_backend:        accelerate
+openmp_enabled:        False
+vectorization_enabled: True
+eigen_mpl2_only:       True</pre></div>
+      <p>If <code>lapack_enabled</code> is <code>False</code>, everything still works, but dense solves, SVD and eigh use Eigen's own kernels, which are slower for large matrices. In code, <code>peigen.build_config()</code> returns the same information as a dict.</p>
+    </section>
+
+    <section id="source">
+      <h2>Build from source</h2>
+      <p>On platforms without a wheel, pip builds the source distribution automatically. That needs:</p>
+      <ul>
+        <li>a C++17 compiler and CMake 3.18 or newer</li>
+        <li>BLAS/LAPACK development files: optional, but recommended. On Linux, install OpenBLAS (for example <code>sudo apt-get install libopenblas-dev</code>) and point CMake at it:</li>
+      </ul>
+      <div class="code-block"><span class="lang">bash</span><pre><code class="language-bash">CMAKE_ARGS="-DBLA_VENDOR=OpenBLAS" pip install --no-binary peigentux peigentux</code></pre></div>
+      <p>To work on pEigen itself, clone the repository with its Eigen submodule and install in editable mode:</p>
+      <div class="code-block"><span class="lang">bash</span><pre><code class="language-bash">git clone --recurse-submodules https://github.com/TtheBC01/pEigen.git
+cd pEigen
+python -m pip install -e ".[test,sparse]"
+pytest</code></pre></div>
+      <p>See <a href="https://github.com/TtheBC01/pEigen/blob/main/DEV.md">DEV.md</a> for tests, benchmarks and release steps.</p>
+    </section>
+
+    <section id="names">
+      <h2>Why two names?</h2>
+      <p>The name <code>peigen</code> on PyPI belongs to an unrelated project, so this one is distributed as <code>peigentux</code> (after <a href="https://eigen.tuxfamily.org">eigen.tuxfamily.org</a>). The import name is unchanged:</p>
+      <div class="code-block"><span class="lang">python</span><pre><code class="language-python">import peigen
+from peigen import linalg, sparse, decomp</code></pre></div>
+      <div class="callout warn"><p><code>pip install peigen</code> installs that other project, not this one.</p></div>
+      <p>Coming from pEigen 1.0 (the Boost.Python <code>libpeigen</code> module)? 2.0 was a rewrite; the <a href="https://github.com/TtheBC01/pEigen/blob/main/CHANGELOG.md">changelog</a> has a migration table.</p>
+    </section>
+  </article>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <h2>Documentation</h2>
+        <ul>
+          <li><a href="install.html">Install</a></li>
+          <li><a href="algorithms.html">Algorithms</a></li>
+          <li><a href="benchmarks.html">Benchmarks</a></li>
+          <li><a href="examples.html">Examples</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Project</h2>
+        <ul>
+          <li><a href="https://github.com/TtheBC01/pEigen">Source on GitHub</a></li>
+          <li><a href="https://pypi.org/project/peigentux/">PyPI: peigentux</a></li>
+          <li><a href="https://github.com/TtheBC01/pEigen/blob/main/CHANGELOG.md">Changelog</a></li>
+          <li><a href="https://github.com/TtheBC01/pEigen/releases">Releases</a></li>
+          <li><a href="https://github.com/TtheBC01/pEigen/issues">Report an issue</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Built on</h2>
+        <ul>
+          <li><a href="https://eigen.tuxfamily.org">Eigen</a></li>
+          <li><a href="https://numpy.org">NumPy</a></li>
+          <li><a href="https://scipy.org">SciPy</a></li>
+          <li><a href="https://pybind11.readthedocs.io">pybind11</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>For tools</h2>
+        <ul>
+          <li><a href="llms.txt">llms.txt</a></li>
+          <li><a href="sitemap.xml">sitemap.xml</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 pEigen contributors. MIT licensed; bundles Eigen under MPL-2.0.</span>
+      <span>pEigen is an independent project built on Eigen.</span>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

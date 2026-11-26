@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Algorithms: pEigen</title>
+<meta name="description" content="Every pEigen routine with its Eigen class or LAPACK backend: dense solve, QR, SVD, eigh; sparse Cholesky, LDLT, multifrontal LDLT, SparseLU, CG and BiCGSTAB.">
+<link rel="canonical" href="https://peigentux.com/algorithms.html">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0e1726">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="pEigen">
+<meta property="og:title" content="Algorithms: pEigen">
+<meta property="og:description" content="Every pEigen routine with its Eigen class or LAPACK backend: dense solve, QR, SVD, eigh; sparse Cholesky, LDLT, multifrontal LDLT, SparseLU, CG and BiCGSTAB.">
+<meta property="og:url" content="https://peigentux.com/algorithms.html">
+<meta name="twitter:card" content="summary">
+<link rel="alternate" type="text/plain" title="llms.txt" href="llms.txt">
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem("peigen-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+<script src="assets/site.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <nav class="wrap nav" aria-label="Main">
+    <a class="brand" href="./"><img src="assets/logo.svg" alt="" width="30" height="30">pEigen</a>
+    <button class="icon-btn menu-btn" type="button" data-menu-toggle aria-expanded="false" aria-controls="nav-links" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <ul class="nav-links" id="nav-links">
+      <li><a href="install.html">Install</a></li>
+      <li><a href="algorithms.html" aria-current="page">Algorithms</a></li>
+      <li><a href="benchmarks.html">Benchmarks</a></li>
+      <li><a href="examples.html">Examples</a></li>
+      <li><a href="https://github.com/TtheBC01/pEigen"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="width:18px;height:18px;vertical-align:-3px;margin-right:6px"><path d="M12 .5a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2.2c-3.3.7-4-1.4-4-1.4-.6-1.4-1.4-1.8-1.4-1.8-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.7 18.3 5 18.3 5c.7 1.7.3 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .5z"/></svg>GitHub</a></li>
+    </ul>
+    <button class="icon-btn" type="button" data-theme-toggle aria-label="Toggle dark theme"></button>
+  </nav>
+</header>
+<main id="main">
+<section class="page-head">
+  <div class="wrap">
+    <h1>Algorithms</h1>
+    <p>Every routine pEigen exposes, which Eigen class or LAPACK routine runs it, and what it expects from your matrix.</p>
+  </div>
+</section>
+
+<div class="wrap docs">
+  <nav class="toc" aria-label="On this page">
+    <h2>On this page</h2>
+    <ul>
+      <li><a href="#choose">Which solver?</a></li>
+      <li><a href="#dense">Dense: peigen.linalg</a></li>
+      <li><a href="#cholesky">Sparse Cholesky</a></li>
+      <li><a href="#sparse-direct">Sparse LU</a></li>
+      <li><a href="#iterative">Iterative solvers</a></li>
+      <li><a href="#products">Sparse products</a></li>
+      <li><a href="#decomp">peigen.decomp</a></li>
+      <li><a href="#conventions">Conventions</a></li>
+    </ul>
+  </nav>
+  <article>
+    <section id="choose">
+      <h2>Which solver should I use?</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Your matrix</th><th>Use</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><td>Dense, square</td><td><code>linalg.solve(A, b)</code></td><td>LU with partial pivoting (LAPACK <code>dgesv</code>).</td></tr>
+            <tr><td>Dense, tall (least squares)</td><td><code>decomp.QR(A).solve(b)</code> or <code>decomp.SVD(A).solve(b)</code></td><td>QR for full column rank; SVD for rank-deficient problems or the minimum-norm solution.</td></tr>
+            <tr><td>Sparse, symmetric positive definite</td><td><code>sparse.cholesky(A)</code></td><td>Simplicial LDLᵀ with AMD ordering. Reusable, with <code>refactorize</code>, <code>slogdet</code> and <code>shift</code>.</td></tr>
+            <tr><td>Sparse SPD with lots of fill (3D meshes)</td><td><code>sparse.cholesky(A, mode="multifrontal")</code></td><td>Dense frontal matrices and level-3 BLAS: 3–9× faster than simplicial on 3D meshes.</td></tr>
+            <tr><td>Sparse, symmetric indefinite (KKT, saddle point)</td><td><code>sparse.cholesky(A, mode="multifrontal")</code></td><td>Pivoted LDLᵀ with 1×1 and 2×2 pivots; also reports the inertia.</td></tr>
+            <tr><td>Sparse, nonsymmetric</td><td><code>sparse.factorize(A)</code></td><td>Eigen <code>SparseLU</code> (supernodal LU with partial pivoting).</td></tr>
+            <tr><td>Sparse SPD, too large to factor</td><td><code>sparse.solve(A, b, method="cg")</code></td><td>Conjugate gradient, optionally with a Jacobi preconditioner.</td></tr>
+            <tr><td>Sparse nonsymmetric, too large to factor</td><td><code>sparse.solve(A, b, method="bicgstab")</code></td><td>BiCGSTAB with Eigen's default diagonal preconditioner.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="dense">
+      <h2>Dense linear algebra: <code>peigen.linalg</code></h2>
+      <p>The functions follow NumPy's conventions: a 1D right-hand side returns a 1D solution, and shapes match <code>numpy.linalg</code>. Where both are available, <code>method="auto"</code> picks LAPACK; the release wheels always link it.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Function</th><th>Computes</th><th>Backends (<code>method=</code>)</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><code>matmul(a, b)</code></td><td><code>a @ b</code></td><td>Eigen GEMM, which calls BLAS <code>dgemm</code> when linked</td><td>Returns a new C-ordered array.</td></tr>
+            <tr><td><code>solve(a, b)</code></td><td><code>x</code> with <code>a x = b</code></td><td><code>lapack</code>: <code>dgesv</code> · <code>eigen</code>: <code>PartialPivLU</code></td><td>Raises <code>ValueError</code> for singular or numerically singular <code>a</code>.</td></tr>
+            <tr><td><code>qr(a, mode="reduced")</code></td><td><code>Q, R</code> with <code>a = Q R</code></td><td>Eigen <code>HouseholderQR</code></td><td><code>mode="complete"</code> returns the full m×m <code>Q</code>.</td></tr>
+            <tr><td><code>svd(a, full_matrices=False)</code></td><td><code>U, s, Vt</code></td><td><code>lapack</code>: <code>dgesdd</code> · <code>bdcsvd</code>: Eigen <code>BDCSVD</code></td><td>Singular values in descending order, as in NumPy.</td></tr>
+            <tr><td><code>eigh(a, lower=True)</code></td><td><code>w, V</code> for symmetric <code>a</code></td><td><code>lapack</code>: <code>dsyevd</code> · <code>eigen</code>: <code>SelfAdjointEigenSolver</code></td><td>Only the chosen triangle is read. Eigenvalues ascending.</td></tr>
+            <tr><td><code>eighvals(a, lower=True)</code></td><td><code>w</code></td><td>as <code>eigh</code></td><td>Skips the eigenvectors.</td></tr>
+            <tr><td><code>norm(a, ord=None, axis=None)</code></td><td>Frobenius norm (default)</td><td>Eigen reduction</td><td>Other <code>ord</code>/<code>axis</code> combinations defer to <code>numpy.linalg.norm</code>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="cholesky">
+      <h2>Sparse Cholesky: <code>sparse.cholesky</code></h2>
+      <p><code>sparse.cholesky(a, mode="ldlt", ordering="amd", lower=True, shift=0.0)</code> factors <code>P (A + shift·I) Pᵀ</code> once and returns a reusable <code>SparseCholesky</code>. Only one triangle of <code>A</code> is read, so you can pass just that triangle. It needs no SuiteSparse.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Mode</th><th>Factorization</th><th>Eigen class</th><th>Use it for</th></tr></thead>
+          <tbody>
+            <tr><td><code>"ldlt"</code> (default)</td><td><code>L D Lᵀ</code>, no square roots</td><td><code>SimplicialLDLT</code></td><td>SPD matrices with low fill: 2D meshes, graph Laplacians, banded systems. Solves with many right-hand sides use a blocked kernel.</td></tr>
+            <tr><td><code>"llt"</code></td><td><code>L Lᵀ</code></td><td><code>SimplicialLLT</code></td><td>Classic Cholesky. Raises if the matrix isn't positive definite, so it doubles as a definiteness test.</td></tr>
+            <tr><td><code>"multifrontal"</code> <span class="badge">experimental</span></td><td>Pivoted <code>L D Lᵀ</code>, with D made of 1×1 and 2×2 blocks</td><td><code>MultifrontalLDLT</code></td><td>High-fill problems (3D meshes) and symmetric <strong>indefinite</strong> matrices. Solves with several right-hand sides use a supernodal blocked kernel.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>Orderings</h3>
+      <p><code>ordering="amd"</code> (approximate minimum degree) reduces fill-in and is the right choice almost always. <code>ordering="natural"</code> keeps the input order, which is only useful for banded matrices or debugging.</p>
+      <h3>What a factorization can do</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Member</th><th>Does</th></tr></thead>
+          <tbody>
+            <tr><td><code>solve(b)</code></td><td>Solves for a 1D or 2D <code>b</code>. Releases the GIL, so threads can share one factorization.</td></tr>
+            <tr><td><code>refactorize(a, shift=None)</code></td><td>New values with the same sparsity pattern: reruns only the numeric phase. Raises <code>ValueError</code> if the pattern differs.</td></tr>
+            <tr><td><code>slogdet()</code> / <code>logdet()</code></td><td><code>(sign, log|det|)</code> as in <code>numpy.linalg.slogdet</code>, without overflow. <code>logdet()</code> requires a positive determinant.</td></tr>
+            <tr><td><code>inertia</code></td><td><code>(positive, negative, zero)</code> eigenvalue counts, read off the pivots of D (Sylvester's law of inertia).</td></tr>
+            <tr><td><code>shift</code>, <code>mode</code>, <code>ordering</code>, <code>shape</code>, <code>factor_nnz</code></td><td>Settings, and the number of stored nonzeros in L (a measure of fill-in).</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout">
+        <p><strong>Indefinite matrices:</strong> use <code>mode="multifrontal"</code>. <code>"ldlt"</code> doesn't pivot for stability, so it can be inaccurate or fail on them. Multifrontal's threshold pivoting doesn't rescale the matrix, so equilibrate badly scaled input first.</p>
+      </div>
+      <p>One-shot use: <code>sparse.solve(A, b, method="cholesky")</code> is the same as <code>sparse.cholesky(A).solve(b)</code>.</p>
+    </section>
+
+    <section id="sparse-direct">
+      <h2>Sparse LU: <code>sparse.factorize</code></h2>
+      <p><code>sparse.factorize(A)</code> wraps Eigen's <code>SparseLU</code>: a supernodal LU with partial pivoting and a COLAMD column ordering, for general square matrices. It returns a <code>SparseFactorized</code> object whose <code>solve(b)</code> accepts 1D or 2D right-hand sides. <code>sparse.solve(A, b)</code> (<code>method="auto"</code> or <code>"lu"</code>) does the same in one call.</p>
+    </section>
+
+    <section id="iterative">
+      <h2>Iterative solvers: <code>sparse.solve</code></h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th><code>method=</code></th><th>Matrix</th><th>Eigen class</th><th>Preconditioners</th></tr></thead>
+          <tbody>
+            <tr><td><code>"cg"</code></td><td>Symmetric positive definite</td><td><code>ConjugateGradient</code></td><td><code>"none"</code>, <code>"jacobi"</code> (diagonal), <code>"ilu"</code> (<code>IncompleteLUT</code>)</td></tr>
+            <tr><td><code>"bicgstab"</code></td><td>General square</td><td><code>BiCGSTAB</code></td><td>Diagonal (Eigen's default)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><code>tol</code> is the relative residual <code>‖Ax − b‖ / ‖b‖</code> (default <code>1e-8</code>), and <code>maxiter</code> defaults to <code>2n</code>. The solvers raise <code>RuntimeError</code> if they don't converge. <code>sparse.solve_stats(A, b, method="cg", ...)</code> returns the iteration count and estimated error, for comparing preconditioners.</p>
+      <div class="callout warn">
+        <p><strong>ILU with CG:</strong> <code>IncompleteLUT</code> is not a symmetric preconditioner, and CG assumes one. With the default <code>ilu_fill_factor=10</code> it can fail to converge even on a 2D Laplacian. Raise <code>ilu_fill_factor</code> (for example to 40), use <code>"jacobi"</code>, or factor the matrix with <code>sparse.cholesky</code> instead.</p>
+      </div>
+    </section>
+
+    <section id="products">
+      <h2>Sparse products and helpers</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Function</th><th>Computes</th><th>Returns</th></tr></thead>
+          <tbody>
+            <tr><td><code>spmm(a, b)</code></td><td>sparse @ dense</td><td>NumPy array</td></tr>
+            <tr><td><code>spspmm(a, b)</code></td><td>sparse @ sparse</td><td><code>scipy.sparse</code> CSC matrix, pruned</td></tr>
+            <tr><td><code>to_dense(a)</code></td><td>sparse to dense</td><td>NumPy array</td></tr>
+            <tr><td><code>from_coo(data, row, col, shape)</code></td><td>build from triplets (duplicates summed)</td><td><code>scipy.sparse</code> CSC matrix</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>For plain products, SciPy's own <code>@</code> is currently faster; see the <a href="benchmarks.html#sparse">benchmarks</a>. These functions are mainly here for API completeness.</p>
+    </section>
+
+    <section id="decomp">
+      <h2>Reusable decompositions: <code>peigen.decomp</code></h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Class</th><th>Holds</th><th><code>solve</code></th></tr></thead>
+          <tbody>
+            <tr><td><code>SVD(a, full_matrices=False)</code></td><td><code>U</code>, <code>s</code>, <code>Vt</code></td><td>Minimum-norm least squares; singular values <code>&lt;= rcond · max(s)</code> count as zero (<code>rcond</code> is relative, as in <code>numpy.linalg.lstsq</code>).</td></tr>
+            <tr><td><code>QR(a, mode="reduced")</code></td><td><code>Q</code>, <code>R</code></td><td>Square or tall <code>a</code> with full column rank: exact or least-squares solution, from either mode.</td></tr>
+            <tr><td><code>SparseFactorized(a)</code></td><td>Sparse LU</td><td>Same as <code>sparse.factorize</code>.</td></tr>
+            <tr><td><code>SparseCholesky(a, ...)</code></td><td>Sparse Cholesky / LDLᵀ</td><td>Same as <code>sparse.cholesky</code>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="conventions">
+      <h2>Conventions</h2>
+      <ul>
+        <li><strong>Real double precision.</strong> Everything runs in <code>float64</code>. Integer and <code>float32</code> inputs are converted; complex inputs raise <code>TypeError</code> rather than silently dropping the imaginary part.</li>
+        <li><strong>Any SciPy sparse format.</strong> <code>*_matrix</code> or <code>*_array</code>, <code>int32</code> or <code>int64</code> indices. Unsorted or duplicate entries are canonicalized on a copy; your matrix is never modified.</li>
+        <li><strong>Size limit.</strong> Sparse dimensions and nonzero counts must fit in 32-bit indices; larger matrices raise <code>ValueError</code>.</li>
+        <li><strong>Errors.</strong> <code>ValueError</code> for bad shapes or arguments, <code>numpy.linalg.LinAlgError</code> when a Cholesky factorization breaks down, <code>RuntimeError</code> when an iterative solver doesn't converge or a sparse LU fails.</li>
+        <li><strong>Licensing.</strong> pEigen is MIT. It compiles Eigen with <code>EIGEN_MPL2_ONLY</code>, so the wheels contain only MPL-2.0 Eigen code.</li>
+      </ul>
+    </section>
+  </article>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <h2>Documentation</h2>
+        <ul>
+          <li><a href="install.html">Install</a></li>
+          <li><a href="algorithms.html">Algorithms</a></li>
+          <li><a href="benchmarks.html">Benchmarks</a></li>
+          <li><a href="examples.html">Examples</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Project</h2>
+        <ul>
+          <li><a href="https://github.com/TtheBC01/pEigen">Source on GitHub</a></li>
+          <li><a href="https://pypi.org/project/peigentux/">PyPI: peigentux</a></li>
+          <li><a href="https://github.com/TtheBC01/pEigen/blob/main/CHANGELOG.md">Changelog</a></li>
+          <li><a href="https://github.com/TtheBC01/pEigen/releases">Releases</a></li>
+          <li><a href="https://github.com/TtheBC01/pEigen/issues">Report an issue</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Built on</h2>
+        <ul>
+          <li><a href="https://eigen.tuxfamily.org">Eigen</a></li>
+          <li><a href="https://numpy.org">NumPy</a></li>
+          <li><a href="https://scipy.org">SciPy</a></li>
+          <li><a href="https://pybind11.readthedocs.io">pybind11</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>For tools</h2>
+        <ul>
+          <li><a href="llms.txt">llms.txt</a></li>
+          <li><a href="sitemap.xml">sitemap.xml</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 pEigen contributors. MIT licensed; bundles Eigen under MPL-2.0.</span>
+      <span>pEigen is an independent project built on Eigen.</span>
+    </div>
+  </div>
+</footer>
+</body>
+</html>
