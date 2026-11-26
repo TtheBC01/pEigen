@@ -5,6 +5,33 @@ All notable changes to pEigen are documented here. The project follows
 
 ## [Unreleased]
 
+### Added
+
+- `sparse.solve(..., method="cg", preconditioner="ichol")`: zero-fill incomplete Cholesky (Eigen
+  `IncompleteCholesky`, in the matrix's own ordering), a symmetric preconditioner suited to CG. On
+  2D 5-point Laplacians it roughly halves CG's iteration count (100x100: 186 → 77).
+- `sparse.solve_stats` also returns `"residual"`, the true relative residual
+  `‖b − Ax‖ / ‖b‖` of the solution (`"error"` remains Eigen's recursive estimate).
+
+### Fixed
+
+- BiCGSTAB (and CG) could report success while the true residual was far above `tol`: Eigen
+  stops on a recursively updated residual that can drift from `b − Ax`. For example, BiCGSTAB on
+  a 1D upwind convection–diffusion problem with `tol=1e-10` returned a solution with
+  `‖Ax − b‖ / ‖b‖ ≈ 1.8e-3`. `sparse.solve` and `solve_stats` now recompute the true residual
+  after every iterative solve; if it is more than 10x above `tol` the solver restarts from the
+  current iterate (at most 5 times, within the same `maxiter` budget), and raises `RuntimeError`
+  if the residual still misses. A `tol` that double precision can't reach for the problem now
+  raises instead of returning a less accurate answer.
+
+### Deprecated
+
+- `preconditioner="ilu"` with `method="cg"` emits a `DeprecationWarning` and will be removed in
+  3.0. `IncompleteLUT` is not symmetric, so CG can fail with it: at the default
+  `ilu_fill_factor=10` it did not converge on 2D Laplacians of 30², 60² or 100² unknowns, where
+  plain CG takes 54–186 iterations. It still works as before (a large fill factor makes it
+  converge); its non-convergence error now points to `"ichol"`.
+
 ## [2.1.0] - 2026-11-25
 
 ### Added

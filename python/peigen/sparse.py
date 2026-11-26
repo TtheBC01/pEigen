@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 
 from . import _core
@@ -25,6 +27,18 @@ def _as_2d_rhs(b):
     if rhs.ndim == 2:
         return rhs, False
     raise ValueError("rhs must be a 1D or 2D array")
+
+
+def _warn_cg_ilu(method: str, preconditioner: str) -> None:
+    if method == "cg" and preconditioner == "ilu":
+        warnings.warn(
+            "preconditioner='ilu' with method='cg' is deprecated and will be removed in pEigen 3.0: "
+            "IncompleteLUT is not a symmetric preconditioner, so CG can fail to converge with it "
+            "(even on a 2D Laplacian at the default ilu_fill_factor). "
+            "Use preconditioner='ichol' (incomplete Cholesky) instead.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
 
 
 def spmm(a, b):
@@ -60,6 +74,15 @@ def solve(
 
     ``method`` is one of ``"auto"``/``"lu"`` (SparseLU), ``"cholesky"`` (SimplicialLDLT; ``a`` must
     be symmetric, only its lower triangle is read), ``"cg"`` or ``"bicgstab"``.
+
+    For the iterative methods, ``tol`` is the target relative residual ``||b - a x|| / ||b||``.
+    After the solver stops, the true residual is recomputed; if it misses ``tol`` (by more than a
+    factor of 10) the solver restarts from its current iterate, and ``RuntimeError`` is raised if
+    that doesn't recover. ``RuntimeError`` is also raised when ``maxiter`` is reached.
+
+    ``preconditioner`` (``method="cg"`` only) is ``"none"``, ``"jacobi"`` (diagonal) or
+    ``"ichol"`` (incomplete Cholesky). ``"ilu"`` (IncompleteLUT, tuned by ``ilu_fill_factor`` and
+    ``ilu_drop_tol``) is deprecated for CG because it is not symmetric.
     """
     sp = _require_scipy()
     if not sp.issparse(a):
@@ -68,6 +91,7 @@ def solve(
         if preconditioner != "none":
             raise ValueError("preconditioner is only supported for method='cg'")
         return SparseCholesky(a).solve(b)
+    _warn_cg_ilu(method, preconditioner)
     rhs, squeezed = _as_2d_rhs(b)
     x = _core.sparse_solve(
         a,
@@ -93,10 +117,16 @@ def solve_stats(
     ilu_fill_factor: int = 10,
     ilu_drop_tol: float = 1e-4,
 ):
-    """Return iteration count and estimated error for an iterative CG solve."""
+    """Run a CG solve and return ``{"iterations", "error", "residual"}``.
+
+    ``iterations`` counts all CG iterations (including any restart), ``error`` is CG's own residual
+    estimate and ``residual`` is the true relative residual ``||b - a x|| / ||b||``. Takes the same
+    arguments as :func:`solve` and raises ``RuntimeError`` in the same cases.
+    """
     sp = _require_scipy()
     if not sp.issparse(a):
         a = sp.csc_matrix(a)
+    _warn_cg_ilu(method, preconditioner)
     rhs, squeezed = _as_2d_rhs(b)
     if not squeezed and rhs.shape[1] != 1:
         raise ValueError("solve_stats requires a single RHS column")

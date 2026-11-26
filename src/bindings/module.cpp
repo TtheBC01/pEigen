@@ -1,11 +1,13 @@
 #include <cmath>
 #include <cstring>
+#include <iomanip>
 #include <limits>
 #include <algorithm>
 #include <array>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -1309,144 +1311,151 @@ static py::object core_spspmm(py::object a, py::object b) {
   return to_scipy_csc(out);
 }
 
-template <typename Preconditioner>
-static void run_conjugate_gradient(const Sparse &mat,
-                                   const Eigen::Ref<const RowMatrix> &rhs,
-                                   Eigen::Map<RowMatrix> &out,
-                                   double effective_tol,
-                                   int effective_maxiter) {
-  Eigen::ConjugateGradient<Sparse, Eigen::Lower | Eigen::Upper, Preconditioner> cg;
-  cg.setTolerance(effective_tol);
-  cg.setMaxIterations(effective_maxiter);
-  cg.compute(mat);
-  if (cg.info() != Eigen::Success) {
-    throw std::runtime_error("ConjugateGradient setup failed");
-  }
-  for (int col = 0; col < rhs.cols(); ++col) {
-    out.col(col) = cg.solve(rhs.col(col));
-    if (cg.info() != Eigen::Success) {
-      throw std::runtime_error(
-          "ConjugateGradient did not converge (iters=" + std::to_string(cg.iterations()) +
-          ", error=" + std::to_string(cg.error()) + ")");
-    }
-  }
+// ---------------------------------------------------------------------------------------------
+// Iterative solvers (CG, BiCGSTAB)
+//
+// Eigen's iterative solvers stop when a recursively updated residual drops below the tolerance.
+// That recursion can drift away from the true residual b - A x, badly so for BiCGSTAB on
+// nonnormal (e.g. convection-dominated) problems, so "converged" can mean an answer that misses
+// `tol` by orders of magnitude. After every solve we therefore recompute the true relative
+// residual. If it misses the tolerance by more than a small margin, we restart from the current
+// iterate (which resets the recursion) while iteration budget remains, and raise if it still
+// misses.
+
+struct IterativeStats {
+  int iterations = 0;     // total over the initial solve and any restarts
+  double error = 0.0;     // the solver's own (recursive) relative residual estimate
+  double residual = 0.0;  // true relative residual ||b - A x|| / ||b||
+};
+
+static std::string format_sci(double value) {
+  std::ostringstream os;
+  os << std::scientific << std::setprecision(2) << value;
+  return os.str();
 }
 
-template <typename Preconditioner>
-static std::pair<int, double> conjugate_gradient_stats(const Sparse &mat,
-                                                       const Eigen::VectorXd &rhs,
-                                                       double effective_tol,
-                                                       int effective_maxiter) {
-  Eigen::ConjugateGradient<Sparse, Eigen::Lower | Eigen::Upper, Preconditioner> cg;
-  cg.setTolerance(effective_tol);
-  cg.setMaxIterations(effective_maxiter);
-  cg.compute(mat);
-  if (cg.info() != Eigen::Success) {
-    throw std::runtime_error("ConjugateGradient setup failed");
+static double true_relative_residual(const Sparse &mat, const Eigen::VectorXd &b,
+                                     const Eigen::VectorXd &x) {
+  const double bnorm = b.norm();
+  const double rnorm = (b - mat * x).norm();
+  return bnorm > 0.0 ? rnorm / bnorm : rnorm;
+}
+
+// The true residual may exceed `tol` by this factor before we treat it as a failure; the floor
+// keeps rounding error from tripping the check when `tol` is near machine precision.
+static double residual_limit(double tol) {
+  return std::max(10.0 * tol, 100.0 * std::numeric_limits<double>::epsilon());
+}
+
+constexpr int kMaxResidualRestarts = 5;
+
+template <typename Solver>
+static IterativeStats iterative_solve_checked(Solver &solver,
+                                              const Sparse &mat,
+                                              const Eigen::VectorXd &b,
+                                              Eigen::VectorXd &x,
+                                              double tol,
+                                              int maxiter,
+                                              const std::string &name,
+                                              const std::string &hint) {
+  IterativeStats st;
+  solver.setMaxIterations(maxiter);
+  x = solver.solve(b);
+  st.iterations = static_cast<int>(solver.iterations());
+  st.error = solver.error();
+
+  const auto throw_not_converged = [&]() {
+    throw std::runtime_error(name + " did not converge (iters=" + std::to_string(st.iterations) +
+                             ", error=" + format_sci(st.error) + ")" + hint);
+  };
+  if (solver.info() != Eigen::Success) {
+    throw_not_converged();
   }
-  Eigen::VectorXd x = cg.solve(rhs);
-  if (cg.info() != Eigen::Success) {
+
+  st.residual = true_relative_residual(mat, b, x);
+  const double limit = residual_limit(tol);
+  int restarts = 0;
+  while (st.residual > limit && restarts < kMaxResidualRestarts && st.iterations < maxiter) {
+    ++restarts;
+    solver.setMaxIterations(maxiter - st.iterations);
+    const Eigen::VectorXd guess = x;
+    x = solver.solveWithGuess(b, guess);
+    st.iterations += static_cast<int>(solver.iterations());
+    st.error = solver.error();
+    if (solver.info() != Eigen::Success) {
+      throw_not_converged();
+    }
+    st.residual = true_relative_residual(mat, b, x);
+  }
+
+  if (st.residual > limit) {
     throw std::runtime_error(
-        "ConjugateGradient did not converge (iters=" + std::to_string(cg.iterations()) +
-        ", error=" + std::to_string(cg.error()) + ")");
+        name + " did not converge: its residual estimate reached tol, but the true relative "
+               "residual ||b - Ax||/||b|| = " +
+        format_sci(st.residual) + " exceeds tol=" + format_sci(tol) +
+        " (iters=" + std::to_string(st.iterations) + ", restarts=" + std::to_string(restarts) +
+        ")" + hint);
   }
-  (void)x;
-  return {static_cast<int>(cg.iterations()), cg.error()};
+  return st;
 }
 
-static void run_conjugate_gradient_ilu(const Sparse &mat,
-                                       const Eigen::Ref<const RowMatrix> &rhs,
-                                       Eigen::Map<RowMatrix> &out,
-                                       double effective_tol,
-                                       int effective_maxiter,
-                                       int ilu_fill_factor,
-                                       double ilu_drop_tol) {
-  Eigen::ConjugateGradient<Sparse, Eigen::Lower | Eigen::Upper, Eigen::IncompleteLUT<double> > cg;
-  cg.preconditioner().setFillfactor(ilu_fill_factor);
-  cg.preconditioner().setDroptol(ilu_drop_tol);
-  cg.setTolerance(effective_tol);
-  cg.setMaxIterations(effective_maxiter);
-  cg.compute(mat);
-  if (cg.info() != Eigen::Success) {
-    throw std::runtime_error("ConjugateGradient setup failed");
+// Solves every column of `rhs` (writing into `out` when given) and returns the last column's stats.
+template <typename Solver>
+static IterativeStats run_iterative(Solver &solver,
+                                    const Sparse &mat,
+                                    const Eigen::Ref<const RowMatrix> &rhs,
+                                    Eigen::Map<RowMatrix> *out,
+                                    double tol,
+                                    int maxiter,
+                                    const std::string &name,
+                                    const std::string &hint = "") {
+  solver.setTolerance(tol);
+  solver.setMaxIterations(maxiter);
+  solver.compute(mat);
+  if (solver.info() != Eigen::Success) {
+    throw std::runtime_error(name + " setup failed" + hint);
   }
-  for (int col = 0; col < rhs.cols(); ++col) {
-    out.col(col) = cg.solve(rhs.col(col));
-    if (cg.info() != Eigen::Success) {
-      throw std::runtime_error(
-          "ConjugateGradient did not converge (iters=" + std::to_string(cg.iterations()) +
-          ", error=" + std::to_string(cg.error()) + ")");
+  IterativeStats st;
+  Eigen::VectorXd b(mat.rows());
+  Eigen::VectorXd x(mat.rows());
+  for (Eigen::Index col = 0; col < rhs.cols(); ++col) {
+    b = rhs.col(col);
+    st = iterative_solve_checked(solver, mat, b, x, tol, maxiter, name, hint);
+    if (out != nullptr) {
+      out->col(col) = x;
     }
   }
+  return st;
 }
 
-static std::pair<int, double> conjugate_gradient_ilu_stats(const Sparse &mat,
-                                                           const Eigen::VectorXd &rhs,
-                                                           double effective_tol,
-                                                           int effective_maxiter,
-                                                           int ilu_fill_factor,
-                                                           double ilu_drop_tol) {
-  Eigen::ConjugateGradient<Sparse, Eigen::Lower | Eigen::Upper, Eigen::IncompleteLUT<double> > cg;
-  cg.preconditioner().setFillfactor(ilu_fill_factor);
-  cg.preconditioner().setDroptol(ilu_drop_tol);
-  cg.setTolerance(effective_tol);
-  cg.setMaxIterations(effective_maxiter);
-  cg.compute(mat);
-  if (cg.info() != Eigen::Success) {
-    throw std::runtime_error("ConjugateGradient setup failed");
-  }
-  Eigen::VectorXd x = cg.solve(rhs);
-  if (cg.info() != Eigen::Success) {
-    throw std::runtime_error(
-        "ConjugateGradient did not converge (iters=" + std::to_string(cg.iterations()) +
-        ", error=" + std::to_string(cg.error()) + ")");
-  }
-  (void)x;
-  return {static_cast<int>(cg.iterations()), cg.error()};
-}
-
-static void dispatch_conjugate_gradient(const Sparse &mat,
-                                        const Eigen::Ref<const RowMatrix> &rhs,
-                                        Eigen::Map<RowMatrix> &out,
-                                        const std::string &preconditioner,
-                                        double effective_tol,
-                                        int effective_maxiter,
-                                        int ilu_fill_factor,
-                                        double ilu_drop_tol) {
+static IterativeStats run_conjugate_gradient(const Sparse &mat,
+                                             const Eigen::Ref<const RowMatrix> &rhs,
+                                             Eigen::Map<RowMatrix> *out,
+                                             const std::string &preconditioner,
+                                             double tol,
+                                             int maxiter,
+                                             int ilu_fill_factor,
+                                             double ilu_drop_tol) {
+  constexpr int UpLo = Eigen::Lower | Eigen::Upper;
+  const std::string name = "ConjugateGradient";
   if (preconditioner == "none") {
-    run_conjugate_gradient<Eigen::IdentityPreconditioner>(mat, rhs, out, effective_tol,
-                                                          effective_maxiter);
-  } else if (preconditioner == "jacobi") {
-    run_conjugate_gradient<Eigen::DiagonalPreconditioner<double> >(mat, rhs, out, effective_tol,
-                                                                   effective_maxiter);
-  } else if (preconditioner == "ilu") {
-    if (ilu_fill_factor <= 0) {
-      throw py::value_error("ilu_fill_factor must be positive when preconditioner='ilu'");
-    }
-    if (ilu_drop_tol < 0.0) {
-      throw py::value_error("ilu_drop_tol must be non-negative when preconditioner='ilu'");
-    }
-    run_conjugate_gradient_ilu(mat, rhs, out, effective_tol, effective_maxiter, ilu_fill_factor,
-                               ilu_drop_tol);
-  } else {
-    throw py::value_error("preconditioner must be one of: none, jacobi, ilu");
-  }
-}
-
-static std::pair<int, double> dispatch_conjugate_gradient_stats(const Sparse &mat,
-                                                                const Eigen::VectorXd &rhs,
-                                                                const std::string &preconditioner,
-                                                                double effective_tol,
-                                                                int effective_maxiter,
-                                                                int ilu_fill_factor,
-                                                                double ilu_drop_tol) {
-  if (preconditioner == "none") {
-    return conjugate_gradient_stats<Eigen::IdentityPreconditioner>(mat, rhs, effective_tol,
-                                                                 effective_maxiter);
+    Eigen::ConjugateGradient<Sparse, UpLo, Eigen::IdentityPreconditioner> cg;
+    return run_iterative(cg, mat, rhs, out, tol, maxiter, name);
   }
   if (preconditioner == "jacobi") {
-    return conjugate_gradient_stats<Eigen::DiagonalPreconditioner<double> >(mat, rhs, effective_tol,
-                                                                           effective_maxiter);
+    Eigen::ConjugateGradient<Sparse, UpLo, Eigen::DiagonalPreconditioner<double> > cg;
+    return run_iterative(cg, mat, rhs, out, tol, maxiter, name);
+  }
+  if (preconditioner == "ichol") {
+    // Symmetric preconditioner, as CG requires. Eigen's IncompleteCholesky (zero fill beyond the
+    // pattern of A) reads the lower triangle, applies diagonal scaling, and retries with a growing
+    // diagonal shift if the factorization breaks down. We keep the matrix's own ordering: a
+    // fill-reducing ordering such as AMD weakens zero-fill IC badly (on a 100x100 5-point
+    // Laplacian, 154 CG iterations with AMD vs 77 in natural order, against 186 unpreconditioned).
+    Eigen::ConjugateGradient<
+        Sparse, UpLo, Eigen::IncompleteCholesky<double, Eigen::Lower, Eigen::NaturalOrdering<int> > >
+        cg;
+    return run_iterative(cg, mat, rhs, out, tol, maxiter, name);
   }
   if (preconditioner == "ilu") {
     if (ilu_fill_factor <= 0) {
@@ -1455,10 +1464,15 @@ static std::pair<int, double> dispatch_conjugate_gradient_stats(const Sparse &ma
     if (ilu_drop_tol < 0.0) {
       throw py::value_error("ilu_drop_tol must be non-negative when preconditioner='ilu'");
     }
-    return conjugate_gradient_ilu_stats(mat, rhs, effective_tol, effective_maxiter, ilu_fill_factor,
-                                        ilu_drop_tol);
+    // Deprecated for CG: IncompleteLUT is not symmetric, which breaks CG's assumptions.
+    Eigen::ConjugateGradient<Sparse, UpLo, Eigen::IncompleteLUT<double> > cg;
+    cg.preconditioner().setFillfactor(ilu_fill_factor);
+    cg.preconditioner().setDroptol(ilu_drop_tol);
+    return run_iterative(cg, mat, rhs, out, tol, maxiter, name,
+                         "; preconditioner='ilu' (IncompleteLUT) is not symmetric, use "
+                         "preconditioner='ichol' with method='cg'");
   }
-  throw py::value_error("preconditioner must be one of: none, jacobi, ilu");
+  throw py::value_error("preconditioner must be one of: none, jacobi, ichol, ilu");
 }
 
 static py::array_t<double> core_sparse_solve(py::object a,
@@ -1507,27 +1521,14 @@ static py::array_t<double> core_sparse_solve(py::object a,
   }
 
   if (method == "cg") {
-    dispatch_conjugate_gradient(sparse->mat, rhs, out, preconditioner, effective_tol, effective_maxiter,
-                                ilu_fill_factor, ilu_drop_tol);
+    run_conjugate_gradient(sparse->mat, rhs, &out, preconditioner, effective_tol, effective_maxiter,
+                           ilu_fill_factor, ilu_drop_tol);
     return out_arr;
   }
 
   if (method == "bicgstab") {
     Eigen::BiCGSTAB<Sparse> solver;
-    solver.setTolerance(effective_tol);
-    solver.setMaxIterations(effective_maxiter);
-    solver.compute(sparse->mat);
-    if (solver.info() != Eigen::Success) {
-      throw std::runtime_error("BiCGSTAB setup failed");
-    }
-    for (int col = 0; col < rhs.cols(); ++col) {
-      out.col(col) = solver.solve(rhs.col(col));
-      if (solver.info() != Eigen::Success) {
-        throw std::runtime_error(
-            "BiCGSTAB did not converge (iters=" + std::to_string(solver.iterations()) +
-            ", error=" + std::to_string(solver.error()) + ")");
-      }
-    }
+    run_iterative(solver, sparse->mat, rhs, &out, effective_tol, effective_maxiter, "BiCGSTAB");
     return out_arr;
   }
 
@@ -1563,13 +1564,14 @@ static py::dict core_sparse_solve_stats(py::object a,
   const int effective_maxiter = maxiter > 0 ? maxiter : static_cast<int>(sparse->mat.rows() * 2);
   const double effective_tol = tol > 0.0 ? tol : 1e-8;
 
-  const auto stats = dispatch_conjugate_gradient_stats(
-      sparse->mat, rhs.col(0), preconditioner, effective_tol, effective_maxiter, ilu_fill_factor,
-      ilu_drop_tol);
+  const IterativeStats stats = run_conjugate_gradient(sparse->mat, rhs, nullptr, preconditioner,
+                                                      effective_tol, effective_maxiter,
+                                                      ilu_fill_factor, ilu_drop_tol);
 
   py::dict out;
-  out["iterations"] = stats.first;
-  out["error"] = stats.second;
+  out["iterations"] = stats.iterations;
+  out["error"] = stats.error;
+  out["residual"] = stats.residual;
   return out;
 }
 

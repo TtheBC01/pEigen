@@ -77,7 +77,7 @@ def test_sparse_cg_and_stats_variants(variant):
     b = np.random.default_rng(2).standard_normal(a.shape[0])
     x = sparse.solve(av, b, method="cg", preconditioner="jacobi", tol=1e-12, maxiter=5000)
     assert np.linalg.norm(ref @ x - b) / np.linalg.norm(b) < 1e-8
-    stats = sparse.solve_stats(av, b, method="cg", preconditioner="ilu", ilu_fill_factor=40)
+    stats = sparse.solve_stats(av, b, method="cg", preconditioner="ichol")
     assert stats["iterations"] > 0
 
 

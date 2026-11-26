@@ -25,7 +25,7 @@ Key facts:
   - `mode="llt"`: SimplicialLLT; fails unless positive definite.
   - `mode="multifrontal"` (experimental): Eigen MultifrontalLDLT, with 1x1/2x2 threshold pivoting. Use it for symmetric indefinite (KKT/saddle-point) matrices and high-fill problems such as 3D meshes.
 - `peigen.sparse.factorize(a)` returns `SparseFactorized` (Eigen SparseLU) with `solve(b)`, for general square matrices.
-- `peigen.sparse.solve(a, b, *, method="auto"|"lu"|"cholesky"|"cg"|"bicgstab", tol=1e-8, maxiter=None, preconditioner="none"|"jacobi"|"ilu", ilu_fill_factor=10, ilu_drop_tol=1e-4)`. Iterative methods raise RuntimeError if they do not converge. `solve_stats(a, b, method="cg", ...)` returns `{"iterations", "error"}`.
+- `peigen.sparse.solve(a, b, *, method="auto"|"lu"|"cholesky"|"cg"|"bicgstab", tol=1e-8, maxiter=None, preconditioner="none"|"jacobi"|"ichol"|"ilu", ilu_fill_factor=10, ilu_drop_tol=1e-4)`. `"ichol"` is zero-fill incomplete Cholesky (Eigen IncompleteCholesky); `"ilu"` with CG is deprecated. Iterative methods raise RuntimeError if they do not converge, judged by the true residual. `solve_stats(a, b, method="cg", ...)` returns `{"iterations", "error", "residual"}` (`error` is Eigen's estimate, `residual` the true ‖b − Ax‖/‖b‖).
 - `peigen.sparse.spmm(a, b)` (sparse @ dense), `spspmm(a, b)` (sparse @ sparse, returns CSC), `to_dense(a)`, `from_coo(data, row, col, shape)`.
 - `peigen.decomp.SVD(a, full_matrices=False).solve(b, rcond=None)` (minimum-norm least squares; rcond relative to max singular value); `peigen.decomp.QR(a, mode="reduced").solve(b)` (square or tall, full column rank); `decomp.SparseFactorized`, `decomp.SparseCholesky` (aliases of the sparse classes).
 
@@ -34,7 +34,8 @@ Key facts:
 - Prefer `sparse.cholesky` over `sparse.solve(..., method="lu")` for symmetric positive definite matrices; keep the factorization object to solve with more right-hand sides later.
 - A 2D right-hand side `b` of shape (n, k) is solved in one blocked pass; that is much faster than looping over columns.
 - For symmetric indefinite matrices use `mode="multifrontal"`; `mode="ldlt"` does not pivot for stability.
-- CG with `preconditioner="ilu"` uses a nonsymmetric incomplete LU and may not converge with the default `ilu_fill_factor=10`; use `"jacobi"`, a larger fill factor, or a direct Cholesky factorization.
+- For CG use `preconditioner="ichol"` (symmetric incomplete Cholesky). `preconditioner="ilu"` with CG is deprecated (DeprecationWarning, removal in 3.0): IncompleteLUT is not symmetric and fails to converge on a 2D Laplacian at the default `ilu_fill_factor=10`.
+- `tol` for `method="cg"`/`"bicgstab"` is checked against the true relative residual ‖b − Ax‖/‖b‖ after the solve, not only Eigen's recursive estimate (which BiCGSTAB can drift away from). If the true residual is more than 10x above `tol`, the solver restarts from its current iterate (up to 5 times, within `maxiter`) and raises RuntimeError if it still misses, so a returned solution meets `tol` within that factor, and an unreachable `tol` raises.
 
 ## Optional
 

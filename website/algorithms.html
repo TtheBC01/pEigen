@@ -70,7 +70,7 @@
             <tr><td>Sparse SPD with lots of fill (3D meshes)</td><td><code>sparse.cholesky(A, mode="multifrontal")</code></td><td>Dense frontal matrices and level-3 BLAS: 3–9× faster than simplicial on 3D meshes.</td></tr>
             <tr><td>Sparse, symmetric indefinite (KKT, saddle point)</td><td><code>sparse.cholesky(A, mode="multifrontal")</code></td><td>Pivoted LDLᵀ with 1×1 and 2×2 pivots; also reports the inertia.</td></tr>
             <tr><td>Sparse, nonsymmetric</td><td><code>sparse.factorize(A)</code></td><td>Eigen <code>SparseLU</code> (supernodal LU with partial pivoting).</td></tr>
-            <tr><td>Sparse SPD, too large to factor</td><td><code>sparse.solve(A, b, method="cg")</code></td><td>Conjugate gradient, optionally with a Jacobi preconditioner.</td></tr>
+            <tr><td>Sparse SPD, too large to factor</td><td><code>sparse.solve(A, b, method="cg")</code></td><td>Conjugate gradient, optionally with an incomplete Cholesky (<code>preconditioner="ichol"</code>) or Jacobi preconditioner.</td></tr>
             <tr><td>Sparse nonsymmetric, too large to factor</td><td><code>sparse.solve(A, b, method="bicgstab")</code></td><td>BiCGSTAB with Eigen's default diagonal preconditioner.</td></tr>
           </tbody>
         </table>
@@ -141,14 +141,15 @@
         <table>
           <thead><tr><th><code>method=</code></th><th>Matrix</th><th>Eigen class</th><th>Preconditioners</th></tr></thead>
           <tbody>
-            <tr><td><code>"cg"</code></td><td>Symmetric positive definite</td><td><code>ConjugateGradient</code></td><td><code>"none"</code>, <code>"jacobi"</code> (diagonal), <code>"ilu"</code> (<code>IncompleteLUT</code>)</td></tr>
+            <tr><td><code>"cg"</code></td><td>Symmetric positive definite</td><td><code>ConjugateGradient</code></td><td><code>"none"</code>, <code>"jacobi"</code> (diagonal), <code>"ichol"</code> (<code>IncompleteCholesky</code>, zero fill); <code>"ilu"</code> (<code>IncompleteLUT</code>) is deprecated</td></tr>
             <tr><td><code>"bicgstab"</code></td><td>General square</td><td><code>BiCGSTAB</code></td><td>Diagonal (Eigen's default)</td></tr>
           </tbody>
         </table>
       </div>
-      <p><code>tol</code> is the relative residual <code>‖Ax − b‖ / ‖b‖</code> (default <code>1e-8</code>), and <code>maxiter</code> defaults to <code>2n</code>. The solvers raise <code>RuntimeError</code> if they don't converge. <code>sparse.solve_stats(A, b, method="cg", ...)</code> returns the iteration count and estimated error, for comparing preconditioners.</p>
-      <div class="callout warn">
-        <p><strong>ILU with CG:</strong> <code>IncompleteLUT</code> is not a symmetric preconditioner, and CG assumes one. With the default <code>ilu_fill_factor=10</code> it can fail to converge even on a 2D Laplacian. Raise <code>ilu_fill_factor</code> (for example to 40), use <code>"jacobi"</code>, or factor the matrix with <code>sparse.cholesky</code> instead.</p>
+      <p><code>tol</code> is the relative residual <code>‖Ax − b‖ / ‖b‖</code> (default <code>1e-8</code>), and <code>maxiter</code> defaults to <code>2n</code>. The solvers raise <code>RuntimeError</code> if they don't converge. <code>sparse.solve_stats(A, b, method="cg", ...)</code> returns the iteration count, Eigen's residual estimate and the true residual, for comparing preconditioners.</p>
+      <p>Convergence is checked against the true residual. Eigen stops on a recursively updated residual, which can drift away from <code>b − Ax</code> (BiCGSTAB on convection-dominated problems is the usual victim). pEigen recomputes the true residual after every solve; if it is more than 10× above <code>tol</code>, the solver restarts from where it stopped (up to 5 times, within <code>maxiter</code>) and raises <code>RuntimeError</code> if that doesn't recover. A <code>tol</code> below what double precision can reach for your problem raises rather than returning a less accurate answer.</p>
+      <div class="callout">
+        <p><strong>Preconditioning CG:</strong> use <code>"ichol"</code>, a symmetric zero-fill incomplete Cholesky computed in the matrix's own ordering. On a 100×100 5-point Laplacian it cuts CG from 186 to 77 iterations. <code>"ilu"</code> (<code>IncompleteLUT</code>) is not symmetric, which CG assumes, and at the default <code>ilu_fill_factor=10</code> it fails to converge even on that Laplacian; with CG it now emits a <code>DeprecationWarning</code> and will be removed in 3.0. If you solve the same SPD matrix many times, <code>sparse.cholesky</code> is usually faster than any CG.</p>
       </div>
     </section>
 

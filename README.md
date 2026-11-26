@@ -214,7 +214,7 @@ X = sparse.solve(A, B, method="lu")
 # Conjugate gradient on SPD systems
 x = sparse.solve(A, b, method="cg")
 x = sparse.solve(A, b, method="cg", preconditioner="jacobi")
-x = sparse.solve(A, b, method="cg", preconditioner="ilu", ilu_fill_factor=40)
+x = sparse.solve(A, b, method="cg", preconditioner="ichol")
 
 # BiCGSTAB for general square systems
 x = sparse.solve(A, b, method="bicgstab", tol=1e-8, maxiter=5000)
@@ -231,7 +231,8 @@ x = sparse.solve(A, b, method="bicgstab", tol=1e-8, maxiter=5000)
 | `maxiter=None` | Iteration cap for CG/BiCGSTAB. Default: `2 * n` where `n = A.shape[0]`. |
 | `preconditioner="none"` | CG only. Identity preconditioner (unpreconditioned CG). |
 | `preconditioner="jacobi"` | CG only. Diagonal (Jacobi) preconditioner. |
-| `preconditioner="ilu"` | CG only. Incomplete LU via Eigen `IncompleteLUT`. |
+| `preconditioner="ichol"` | CG only. Zero-fill incomplete Cholesky via Eigen `IncompleteCholesky`, in the matrix's own ordering (symmetric, so it suits CG). |
+| `preconditioner="ilu"` | CG only. **Deprecated** (`DeprecationWarning`; removal planned for 3.0). Incomplete LU via Eigen `IncompleteLUT`, which is not symmetric, so CG can fail to converge with it. Use `"ichol"`. |
 | `ilu_fill_factor=10` | CG + ILU only. Fill-ratio upper bound passed to `IncompleteLUT`. |
 | `ilu_drop_tol=1e-4` | CG + ILU only. Drop tolerance for `IncompleteLUT`. |
 
@@ -240,6 +241,7 @@ x = sparse.solve(A, b, method="bicgstab", tol=1e-8, maxiter=5000)
 - `A` must be square sparse; `b` must have length `n` (1D) or shape `(n, k)` (2D).
 - `preconditioner` is only valid with `method="cg"`; other methods raise `ValueError` if a nontrivial preconditioner is requested.
 - Iterative solvers raise `RuntimeError` if they do not converge within `maxiter` at the requested tolerance.
+- Convergence is judged by the true residual. Eigen's solvers stop on a recursively updated residual, which can drift from the true `norm(b - Ax)/norm(b)` (badly so for BiCGSTAB on convection-dominated problems). After each solve pEigen recomputes the true residual; if it is more than 10x above `tol`, the solver restarts from its current iterate (up to 5 times, within the same `maxiter` budget) and raises `RuntimeError` if the residual still misses. A `tol` below what double precision can reach for the problem therefore raises instead of returning a less accurate answer.
 - LU raises `RuntimeError` if factorization or solve fails.
 
 **When to use which method:**
@@ -251,28 +253,29 @@ x = sparse.solve(A, b, method="bicgstab", tol=1e-8, maxiter=5000)
 | `"cg"` | Symmetric (SPD in practice) | Eigen `ConjugateGradient` |
 | `"bicgstab"` | General square, nonsymmetric | Eigen `BiCGSTAB` |
 
-CG preconditioners apply only to `"cg"`. For difficult SPD problems (e.g. Poisson-like operators), try `"jacobi"` or `"ilu"` with tuned `ilu_fill_factor` / `ilu_drop_tol`.
+CG preconditioners apply only to `"cg"`. For Poisson-like operators `"ichol"` typically halves the iteration count (on a 100x100 5-point Laplacian: 186 iterations unpreconditioned, 77 with `"ichol"`); `"jacobi"` helps when the diagonal varies a lot. For a repeated or hard SPD solve, a direct `cholesky(A)` is often faster still.
 
 #### CG diagnostics (`solve_stats`)
 
-Return iteration count and estimated relative error from a CG solve without changing the `solve` API. Useful for checking convergence or comparing preconditioners.
+Return iteration count and residuals from a CG solve without changing the `solve` API. Useful for checking convergence or comparing preconditioners.
 
 ```python
-stats = sparse.solve_stats(A, b, method="cg", preconditioner="ilu", ilu_fill_factor=40)
-print(stats["iterations"], stats["error"])
+stats = sparse.solve_stats(A, b, method="cg", preconditioner="ichol")
+print(stats["iterations"], stats["error"], stats["residual"])
 ```
 
 | Key | Description |
 |-----|-------------|
-| `"iterations"` | CG iterations performed. |
-| `"error"` | Estimated relative residual from Eigen. |
+| `"iterations"` | CG iterations performed, including any restart. |
+| `"error"` | Eigen's own (recursively updated) relative residual estimate. |
+| `"residual"` | True relative residual `norm(b - Ax) / norm(b)` of the returned solution. |
 
 **Requirements and behavior:**
 
 - Only supported for `method="cg"`.
 - Requires a single RHS column (1D `b` or `(n, 1)` array).
 - Accepts the same `tol`, `maxiter`, `preconditioner`, `ilu_fill_factor`, and `ilu_drop_tol` arguments as `solve`.
-- Raises `RuntimeError` if CG does not converge (same as `solve`).
+- Raises `RuntimeError` if CG does not converge (same as `solve`, including the true-residual check).
 
 #### Sparse LU factorization (`factorize`)
 
