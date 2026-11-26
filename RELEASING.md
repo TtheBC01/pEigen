@@ -39,8 +39,8 @@ wheels.
 4. Tag and push:
 
    ```bash
-   git tag -a v2.0.0 -m "pEigen 2.0.0"
-   git push origin v2.0.0
+   git tag -a v2.1.0 -m "pEigen 2.1.0"
+   git push origin v2.1.0
    ```
 
 5. The workflow then:

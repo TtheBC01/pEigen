@@ -5,6 +5,8 @@ All notable changes to pEigen are documented here. The project follows
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-25
+
 ### Added
 
 - `sparse.cholesky(..., mode="multifrontal")` (experimental): Eigen `MultifrontalLDLT`, a pivoted
@@ -15,6 +17,12 @@ All notable changes to pEigen are documented here. The project follows
   factorization: 32-RHS solves are 2-4x faster than Eigen's own multifrontal solve.
 - `SparseCholesky.inertia`: `(positive, negative, zero)` eigenvalue counts from the pivots of `D`,
   for every mode.
+
+### Fixed
+
+- `decomp.QR(a, mode="complete").solve(b)` raised `LinAlgError` for tall `a`; it now returns the
+  least-squares solution, like `mode="reduced"`. `QR.solve` also checks the shape of `b`, and wide
+  `a` raises a `ValueError` that points to `SVD.solve`.
 
 ## [2.0.0] - 2026-11-24
 
@@ -79,4 +87,6 @@ the import name is still `peigen`. The unrelated `peigen` project on PyPI is not
 Boost.Python bindings exposing `dense_matrix` / `sparse_matrix` objects and decomposition methods
 (module `libpeigen`), built from source only and never published to PyPI. Not maintained.
 
+[Unreleased]: https://github.com/TtheBC01/pEigen/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/TtheBC01/pEigen/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/TtheBC01/pEigen/releases/tag/v2.0.0

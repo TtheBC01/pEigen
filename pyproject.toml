@@ -7,7 +7,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "peigentux"
-version = "2.0.0"
+version = "2.1.0"
 description = "Eigen-powered dense and sparse linear algebra for NumPy/SciPy, including sparse Cholesky"
 readme = "README.md"
 license = "MIT AND MPL-2.0"

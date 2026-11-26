@@ -45,11 +45,27 @@ class QR:
 
     def __init__(self, a, *, mode: str = "reduced"):
         self.Q, self.R = linalg.qr(a, mode=mode)
+        self.shape = (self.Q.shape[0], self.R.shape[1])
 
     def solve(self, b):
-        """Solve Ax=b using QR factors."""
+        """Solve ``A x = b`` for square ``A``, or the least-squares problem ``min ||A x - b||`` for
+        tall ``A`` (``m > n``), from the QR factors of either ``mode``.
+
+        ``A`` must have full column rank. Wide ``A`` (``m < n``) raises ``ValueError``: QR without
+        column pivoting does not give the minimum-norm solution, so use ``SVD.solve`` instead.
+        """
         b_arr = as_real_float64(b, "b")
-        return np.linalg.solve(self.R, self.Q.T @ b_arr)
+        m, n = self.shape
+        if b_arr.ndim not in (1, 2) or b_arr.shape[0] != m:
+            raise ValueError(f"b must have shape ({m},) or ({m}, k)")
+        if m < n:
+            raise ValueError(
+                f"QR.solve needs a square or tall matrix, got shape ({m}, {n}); "
+                "use SVD.solve for the minimum-norm solution of an underdetermined system"
+            )
+        # mode="complete" returns Q (m, m) and R (m, n); only the leading n columns of Q and rows
+        # of R take part (the rest of R is zero).
+        return np.linalg.solve(self.R[:n, :], self.Q[:, :n].T @ b_arr)
 
 
 # Same class as ``peigen.sparse.factorize`` returns; re-exported here for discoverability.
